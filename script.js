@@ -15,15 +15,18 @@ let isDragging = false;
 // 캔버스 크기 설정
 function resizeCanvas() {
     const containerRect = canvasContainer.getBoundingClientRect();
-    canvas.width = Math.max(containerRect.width, 1000); // 최소 너비 설정
-    canvas.height = Math.max(containerRect.height, 1000); // 최소 높이 설정
+    canvas.width = containerRect.width;
+    canvas.height = containerRect.height;
     drawMindmap();
 }
 
+const levelColors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+    '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
+];
+
 // 노드 그리기
 function drawNode(node) {
-    const padding = 10;
-    const lineHeight = 20;
     const maxWidth = 200; // 최대 너비 설정
 
     ctx.font = '14px Arial'; // 폰트 설정
@@ -46,12 +49,18 @@ function drawNode(node) {
     lines.push(currentLine);
 
     // 노드 크기 계산
+    const padding = 10;
+    const lineHeight = 20;
     const textWidth = Math.min(maxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)));
     const nodeWidth = textWidth + padding * 2;
     const nodeHeight = lines.length * lineHeight + padding * 2;
 
     // 배경 그리기
-    ctx.fillStyle = 'white';
+    if (node.level !== undefined) {
+        ctx.fillStyle = levelColors[node.level % levelColors.length];
+    } else {
+        ctx.fillStyle = 'white';
+    }
     ctx.strokeStyle = 'black';
     ctx.beginPath();
     ctx.roundRect(node.x - nodeWidth / 2, node.y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
@@ -72,8 +81,8 @@ function drawNode(node) {
     node.height = nodeHeight;
 }
 
-// 연결선 그리기
 function drawConnection(conn) {
+    // 연결선 그리기
     const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
     const startY = conn.start.y;
     const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
@@ -176,10 +185,8 @@ canvas.addEventListener('mouseup', onMouseUp);
 
 function onMouseDown(e) {
     const rect = canvas.getBoundingClientRect();
-    const scrollLeft = canvasContainer.scrollLeft;
-    const scrollTop = canvasContainer.scrollTop;
-    const x = e.clientX - rect.left + scrollLeft;
-    const y = e.clientY - rect.top + scrollTop;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     selectedNode = nodes.find(node => 
         x >= node.x - node.width / 2 &&
@@ -202,10 +209,8 @@ function onMouseMove(e) {
     if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scrollLeft = canvasContainer.scrollLeft;
-    const scrollTop = canvasContainer.scrollTop;
-    const x = e.clientX - rect.left + scrollLeft;
-    const y = e.clientY - rect.top + scrollTop;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     if (isConnectMode) {
         drawMindmap();
@@ -224,10 +229,8 @@ function onMouseUp(e) {
     if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scrollLeft = canvasContainer.scrollLeft;
-    const scrollTop = canvasContainer.scrollTop;
-    const x = e.clientX - rect.left + scrollLeft;
-    const y = e.clientY - rect.top + scrollTop;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     if (isConnectMode) {
         const targetNode = nodes.find(node => 
@@ -257,79 +260,73 @@ function onMouseUp(e) {
 function organizeNodes() {
     if (nodes.length === 0) return;
 
-    const levelWidth = Math.min(250, canvas.width / 5); // 레벨 간 간격, 캔버스 너비에 따라 조정
-    const nodeVerticalSpacing = Math.min(100, canvas.height / 10); // 같은 레벨 내 노드 간 수직 간격, 캔버스 높이에 따라 조정
-    
     // 그래프 구조 생성
     const graph = {};
     nodes.forEach(node => {
-        graph[node.id] = { node: node, children: [] };
+        graph[node.id] = { node: node, children: [], parents: [] };
     });
     connections.forEach(conn => {
         graph[conn.start.id].children.push(conn.end.id);
+        graph[conn.end.id].parents.push(conn.start.id);
     });
 
     // 루트 노드 찾기 (들어오는 간선이 없는 노드)
-    const rootId = nodes.find(node => !connections.some(conn => conn.end.id === node.id))?.id || nodes[0].id;
+    const rootNodes = nodes.filter(node => graph[node.id].parents.length === 0);
 
     // BFS로 레벨 할당
-    const queue = [{id: rootId, level: 0}];
+    const queue = rootNodes.map(node => ({id: node.id, level: 0}));
     const visited = new Set();
-    const nodeLevels = {};
 
     while (queue.length > 0) {
         const {id, level} = queue.shift();
         if (visited.has(id)) continue;
 
         visited.add(id);
-        nodeLevels[id] = level;
+        const node = graph[id].node;
+        node.level = level;
 
         graph[id].children.forEach(childId => {
-            queue.push({id: childId, level: level + 1});
+            if (!visited.has(childId)) {
+                queue.push({id: childId, level: level + 1});
+            }
         });
     }
 
+    // 방문되지 않은 노드 처리 (순환 구조나 고립된 노드)
+    nodes.forEach(node => {
+        if (!visited.has(node.id)) {
+            node.level = 0;  // 또는 적절한 기본 레벨 설정
+        }
+    });
+
     // 레벨별 노드 그룹화
     const levelGroups = {};
-    Object.entries(nodeLevels).forEach(([id, level]) => {
-        if (!levelGroups[level]) levelGroups[level] = [];
-        levelGroups[level].push(graph[id].node);
+    nodes.forEach(node => {
+        if (!levelGroups[node.level]) levelGroups[node.level] = [];
+        levelGroups[node.level].push(node);
     });
 
     // 노드 위치 설정
-    let maxHeight = 0;
-    let maxWidth = 0;
+    const levelWidth = Math.min(250, canvas.width / 5);
     Object.entries(levelGroups).forEach(([level, nodesInLevel]) => {
-        const levelX = level * levelWidth;
+        const centerY = canvas.height / 2;
+        const levelX = Number(level) * levelWidth + levelWidth / 2;
+
         nodesInLevel.forEach((node, index) => {
-            const centerY = (nodesInLevel.length - 1) * nodeVerticalSpacing / 2;
+            const nodeSpacing = canvas.height / (nodesInLevel.length + 1);
             node.x = levelX;
-            node.y = index * nodeVerticalSpacing - centerY;
-            maxHeight = Math.max(maxHeight, Math.abs(node.y));
-            maxWidth = Math.max(maxWidth, node.x);
+            node.y = (index + 1) * nodeSpacing;
         });
     });
 
-    // 전체 그래프를 캔버스 중앙으로 이동 및 크기 조정
-    const scale = Math.min(
-        (canvas.width - 100) / (maxWidth + levelWidth),
-        (canvas.height - 100) / (maxHeight * 2 + nodeVerticalSpacing),
-        1 // 최대 스케일을 1로 제한
-    );
-    const offsetX = (canvas.width - (maxWidth + levelWidth) * scale) / 2;
-    const offsetY = canvas.height / 2;
-
-    nodes.forEach(node => {
-        node.x = node.x * scale + offsetX;
-        node.y = node.y * scale + offsetY;
-    });
-    console.log('scale', scale);
-    console.log("offsetX, offsetY", offsetX, offsetY);
-    drawMindmap();
+    console.log('Nodes after organizing:', nodes);  // 디버깅용
 }
 
 // 정리 버튼 이벤트 리스너
-organizeBtn.addEventListener('click', organizeNodes);
+organizeBtn.addEventListener('click', () => {
+    organizeNodes();
+    drawMindmap();
+});
 
 // 임의의 그래프 생성 함수
 function generateTestGraph() {
