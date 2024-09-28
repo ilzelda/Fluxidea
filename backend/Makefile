@@ -3,8 +3,11 @@ build:
 	go build -o ./bin/static-server ./cmd/main.go
 
 # Run the Go program
-run:
+dev-run:
 	CONFIG_FILE_PATH=./config/dev.config.json go run ./cmd/main.go
+
+prod-run:
+	CONFIG_FILE_PATH=./config/prod.config.json go run ./cmd/main.go
 
 # Build the Docker image
 docker-build:
