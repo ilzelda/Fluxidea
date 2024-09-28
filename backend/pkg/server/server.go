@@ -1,6 +1,7 @@
 package server
 
 import (
+	"demo/pkg/apis"
 	"net/http"
 )
 
@@ -17,6 +18,7 @@ func New(cfg *Config) *Server {
 func setupMux(cfg *Config) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/", &staticHandler{rootPath: cfg.RootPath})
+	mux.HandleFunc("/api/data/{user_id}", apis.SaveUserData)
 	return mux
 }
 
