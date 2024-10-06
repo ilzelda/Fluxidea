@@ -1,7 +1,11 @@
 package models
 
+import "github.com/google/uuid"
+
 type Page struct {
-	Nodes       []Node       `json:"nodes"`
+	ID          uuid.UUID    `json:"id"`
+	Name        string       `json:"name"`
+	Nodes       []Node       `json:"nodes,omitempty"`
 	Connections []Connection `json:"connections,omitempty"`
 }
 

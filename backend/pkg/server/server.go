@@ -18,8 +18,7 @@ func New(cfg *Config) *Server {
 func setupMux(cfg *Config) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/", &staticHandler{rootPath: cfg.RootPath})
-	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", apis.LoadUserPage)
-	mux.HandleFunc("POST /api/users/{user_id}/pages/{page_id}", apis.SaveUserPage)
+	apis.PageAPI.RegsistRoute(mux)
 	return mux
 }
 
