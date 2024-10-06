@@ -343,6 +343,75 @@ function generateTestGraph() {
 }
 
 async function saveGraph() {
+    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+    const data = {
+        nodes: nodes.map(node => ({
+            id: node.id,
+            x: node.x,
+            y: node.y,
+            text: node.text
+        })),
+        connections: connections.map(conn => ({
+            start: conn.start.id,
+            end: conn.end.id,
+            description: conn.description
+        }))
+    };
+
+    try {
+        const response = await fetch(`https://localhost:8080/api/data/${userId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            throw new Error('네트워크 응답이 올바르지 않습니다');
+        }
+
+        const result = await response.json();
+        
+        if (result.save_success) {
+            console.log('그래프가 성공적으로 저장되었습니다');
+        } else {
+            console.log('그래프 저장에 실패했습니다');
+        }
+    } catch (error) {
+        console.error('그래프 저장 중 오류 발생:', error);
+    }
+}
+
+async function loadGraph() {
+    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+
+    try {
+        const response = await fetch(`https://localhost:8080/api/data/${userId}`);
+
+        if (!response.ok) {
+            throw new Error('네트워크 응답이 올바르지 않습니다');
+        }
+
+        const data = await response.json();
+
+        if (data.nodes && data.connections) {
+            nodes = data.nodes;
+            connections = data.connections;
+            drawMindmap();
+            console.log('그래프가 성공적으로 로드되었습니다');
+        } else {
+            console.log('그래프 로드에 실패했습니다');
+        }
+    } catch (error) {
+        console.error('그래프 로드 중 오류 발생:', error);
+    }
+}
+
+
+
+
+async function saveGraph() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
     const pageId = document.getElementById('pageSelector').value;
     
