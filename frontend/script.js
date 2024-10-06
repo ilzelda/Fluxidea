@@ -1,18 +1,25 @@
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
 const ctx = canvas.getContext('2d');
+
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
 const organizeBtn = document.getElementById('organizeBtn');
 const testBtn = document.getElementById('testBtn');
 const saveBtn = document.getElementById('saveBtn');
-const loadBtn = document.getElementById('loadBtn');
+const newPageBtn = document.getElementById('newPageBtn');
 
 let nodes = [];
 let connections = [];
 let isConnectMode = false;
 let selectedNode = null;
 let isDragging = false;
+let nextNodeId = 0; // 새 노드 추가
+
+const levelColors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+    '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
+];
 
 // 캔버스 크기 설정
 function resizeCanvas() {
@@ -22,16 +29,13 @@ function resizeCanvas() {
     drawMindmap();
 }
 
-const levelColors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-    '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
-];
-
 // 노드 그리기
 function drawNode(node) {
-    const maxWidth = 200; // 최대 너비 설정
+    const maxWidth = 150; // 최대 너비를 줄임
+    const padding = 5; // 패딩을 줄임
+    const lineHeight = 16; // 줄 높이를 줄임
 
-    ctx.font = '14px Arial'; // 폰트 설정
+    ctx.font = '12px Arial'; // 폰트 크기를 줄임
 
     // 텍스트 줄 바꿈
     const words = node.text.split(' ');
@@ -51,8 +55,6 @@ function drawNode(node) {
     lines.push(currentLine);
 
     // 노드 크기 계산
-    const padding = 10;
-    const lineHeight = 20;
     const textWidth = Math.min(maxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)));
     const nodeWidth = textWidth + padding * 2;
     const nodeHeight = lines.length * lineHeight + padding * 2;
@@ -83,8 +85,8 @@ function drawNode(node) {
     node.height = nodeHeight;
 }
 
+// 연결선 그리기
 function drawConnection(conn) {
-    // 연결선 그리기
     const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
     const startY = conn.start.y;
     const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
@@ -102,8 +104,8 @@ function drawConnection(conn) {
     ctx.rotate(angle);
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(-10, -5);
-    ctx.lineTo(-10, 5);
+    ctx.lineTo(-8, -4);
+    ctx.lineTo(-8, 4);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -112,10 +114,11 @@ function drawConnection(conn) {
     if (conn.description) {
         const midX = (startX + endX) / 2;
         const midY = (startY + endY) / 2;
+        ctx.font = '10px Arial';
         ctx.fillStyle = 'black';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(conn.description, midX, midY - 10);
+        ctx.fillText(conn.description, midX, midY - 8);
     }
 }
 
@@ -154,37 +157,6 @@ function calculateNodeSize(node) {
     node.height = lines.length * lineHeight + padding * 2;
 }
 
-// 새 노드 추가
-let nextNodeId = 0;
-newNodeBtn.addEventListener('click', () => {
-    const text = prompt('노드 텍스트를 입력하세요:');
-    if (text) {
-        const x = Math.random() * (canvas.width - 40) + 20;
-        const y = Math.random() * (canvas.height - 40) + 20;
-        const node = { 
-            id: nextNodeId++,
-            x, 
-            y, 
-            text
-        };
-        calculateNodeSize(node);
-        nodes.push(node);
-        console.log('New node:', x, y); // 디버깅용
-        drawMindmap();
-    }
-});
-
-// 연결 모드 전환
-connectModeBtn.addEventListener('click', () => {
-    isConnectMode = !isConnectMode;
-    connectModeBtn.textContent = isConnectMode ? '일반 모드' : '연결 모드';
-});
-
-// 캔버스 마우스 이벤트
-canvas.addEventListener('mousedown', onMouseDown);
-canvas.addEventListener('mousemove', onMouseMove);
-canvas.addEventListener('mouseup', onMouseUp);
-
 function onMouseDown(e) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -208,7 +180,7 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
-    if (!isDragging) return;
+    if (!isDragging || !selectedNode) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -228,7 +200,7 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
-    if (!isDragging) return;
+    if (!isDragging || !selectedNode) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -254,6 +226,7 @@ function onMouseUp(e) {
     }
 
     isDragging = false;
+    selectedNode = null;
     canvas.style.cursor = 'default';
     drawMindmap();
 }
@@ -324,12 +297,6 @@ function organizeNodes() {
     console.log('Nodes after organizing:', nodes);  // 디버깅용
 }
 
-// 정리 버튼 이벤트 리스너
-organizeBtn.addEventListener('click', () => {
-    organizeNodes();
-    drawMindmap();
-});
-
 // 임의의 그래프 생성 함수
 function generateTestGraph() {
     // 기존 노드와 연결 초기화
@@ -376,7 +343,14 @@ function generateTestGraph() {
 }
 
 async function saveGraph() {
-    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+    const pageId = document.getElementById('pageSelector').value;
+    
+    if (!pageId) {
+        console.log('선택된 페이지가 없습니다.');
+        return;
+    }
+
     const data = {
         nodes: nodes.map(node => ({
             id: node.id,
@@ -392,7 +366,7 @@ async function saveGraph() {
     };
 
     try {
-        const response = await fetch(`https://localhost:8080/api/data/${userId}`, {
+        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages/${pageId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -406,7 +380,7 @@ async function saveGraph() {
 
         const result = await response.json();
         
-        if (result.save_success) {
+        if (result.success_ok) {
             console.log('그래프가 성공적으로 저장되었습니다');
         } else {
             console.log('그래프 저장에 실패했습니다');
@@ -416,41 +390,159 @@ async function saveGraph() {
     }
 }
 
-async function loadGraph() {
-    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+// 페이지 정보를 가져오고 목록을 생성하는 함수
+async function initializePages() {
+    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`https://localhost:8080/api/data/${userId}`);
-
+        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages`);
         if (!response.ok) {
-            throw new Error('네트워크 응답이 올바르지 않습니다');
+            throw new Error('페이지 정보를 가져오는데 실패했습니다.');
         }
-
-        const data = await response.json();
-
-        if (data.nodes && data.connections) {
-            nodes = data.nodes;
-            connections = data.connections;
-            drawMindmap();
-            console.log('그래프가 성공적으로 로드되었습니다');
-        } else {
-            console.log('그래프 로드에 실패했습니다');
+        const pages = await response.json();
+        
+        const pageList = document.getElementById('pageList');
+        pageList.innerHTML = ''; // 기존 목록 제거
+        
+        pages.forEach(page => {
+            const li = document.createElement('li');
+            li.className = 'page-item';
+            li.textContent = page.name;
+            li.dataset.pageId = page.id;
+            li.addEventListener('click', () => loadSelectedPage(page.id));
+            pageList.appendChild(li);
+        });
+        
+        // 첫 번째 페이지 선택
+        if (pages.length > 0) {
+            loadSelectedPage(pages[0].id);
         }
+        else drawMindmap();
+
     } catch (error) {
-        console.error('그래프 로드 중 오류 발생:', error);
+        console.error('페이지 초기화 중 오류 발생:', error);
     }
 }
 
+// 선택된 페이지 로드 함수
+async function loadSelectedPage(pageId) {
+    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
+    try {
+        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages/${pageId}`);
+        if (!response.ok) {
+            throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
+        }
+        const pageData = await response.json();
+        
+        // 페이지 데이터로 노드와 연결 업데이트
+        nodes = pageData.nodes;
+        connections = pageData.connections;
+        drawMindmap();
 
+        const pageItems = document.querySelectorAll('#pageList .page-item');
+        pageItems.forEach(item => {
+            if (item.dataset.pageId === pageId) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    } catch (error) {
+        console.error('페이지 로드 중 오류 발생:', error);
+    }
+}
 
-// 테스트 버튼 이벤트 리스너
-testBtn.addEventListener('click', generateTestGraph);
+// 새 페이지 생성 함수
+async function createNewPage() {
+    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+    const pageName = prompt('새 페이지의 이름을 입력하세요:');
+    if(!pageName) pageName = '새 페이지';
 
-saveBtn.addEventListener('click', saveGraph);
-loadBtn.addEventListener('click', loadGraph);
-// 초기화 및 이벤트 리스너 설정
-window.addEventListener('load', () => {
+    try {
+        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: pageName })
+        });
+
+        if (!response.ok) {
+            throw new Error('새 페이지 생성에 실패했습니다.');
+        }
+
+        const newPage = await response.json(); // {id: <string>, name: <string>}
+        console.log('새 페이지 생성:', newPage);
+
+        // 페이지 목록에 새 페이지 추가
+        const pageList = document.getElementById('pageList');
+        const li = document.createElement('li');
+        li.className = 'page-item';
+        li.dataset.pageId = newPage.id;
+        li.innerHTML = `
+            <span class="page-icon">📄</span>
+            <span class="page-name">${pageName}</span>
+        `;
+        li.addEventListener('click', () => loadSelectedPage(newPage.id));
+        pageList.appendChild(li);
+
+        // 새로 생성된 페이지 로드
+        loadSelectedPage(newPage.id);
+
+    } catch (error) {
+        console.error('새 페이지 생성 중 오류 발생:', error);
+        alert('새 페이지 생성에 실패했습니다. 다시 시도해주세요.');
+    }
+    
+}
+
+function setupButtonListeners() {
+    organizeBtn.addEventListener('click', () => {
+        organizeNodes();
+        drawMindmap();
+    });
+
+    newPageBtn.addEventListener('click', createNewPage);
+    testBtn.addEventListener('click', generateTestGraph);
+    saveBtn.addEventListener('click', saveGraph);
+
+    newNodeBtn.addEventListener('click', () => {
+        const text = prompt('노드 텍스트를 입력하세요:');
+        if (text) {
+            const x = Math.random() * (canvas.width - 40) + 20;
+            const y = Math.random() * (canvas.height - 40) + 20;
+            const node = { 
+                id: nextNodeId++,
+                x, 
+                y, 
+                text
+            };
+            calculateNodeSize(node);
+            nodes.push(node);
+            console.log('New node:', x, y); // 디버깅용
+            drawMindmap();
+        }
+    });
+
+    connectModeBtn.addEventListener('click', () => {
+        isConnectMode = !isConnectMode;
+        connectModeBtn.textContent = isConnectMode ? '일반 모드' : '연결 모드';
+    });
+}
+
+function setupCanvasListeners() {
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
+}
+
+function initializeApp() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-});
+    initializePages();
+    setupButtonListeners();
+    setupCanvasListeners();
+}
+
+window.addEventListener('load', initializeApp);

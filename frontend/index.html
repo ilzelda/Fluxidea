@@ -8,16 +8,27 @@
 </head>
 <body>
     <div class="container">
-        <div class="toolbar">
-            <button id="newNodeBtn">새 노드</button>
-            <button id="connectModeBtn">연결 모드</button>
-            <button id="organizeBtn">정리</button>
-            <button id="testBtn">테스트 그래프 생성</button>
-            <button id="saveBtn">저장</button>
-            <button id="loadBtn">불러오기</button>
+        <div class="sidebar">
+            <h2>페이지 목록</h2>
+            <ul id="pageList">
+                <li class="page-item" data-page-id="1">
+                    <span class="page-icon">📄</span>
+                    <span class="page-name">프로젝트 계획</span>
+                </li>
+            </ul>
+            <button id="newPageBtn">새 페이지</button>
         </div>
-        <div id="canvasContainer">
-            <canvas id="mindmapCanvas"></canvas>
+        <div class="main-content">
+            <div class="toolbar">
+                <button id="newNodeBtn">새 노드</button>
+                <button id="connectModeBtn">연결 모드</button>
+                <button id="organizeBtn">정리</button>
+                <button id="testBtn">테스트 그래프 생성</button>
+                <button id="saveBtn">저장</button>
+            </div>
+            <div id="canvasContainer">
+                <canvas id="mindmapCanvas"></canvas>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
