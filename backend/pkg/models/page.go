@@ -1,6 +1,6 @@
 package models
 
-type Data struct {
+type Page struct {
 	Nodes       []Node       `json:"nodes"`
 	Connections []Connection `json:"connections,omitempty"`
 }
