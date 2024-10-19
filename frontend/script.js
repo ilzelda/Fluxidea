@@ -21,6 +21,8 @@ const levelColors = [
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
+base_url = 'http://localhost:8080';
+
 // 캔버스 크기 설정
 function resizeCanvas() {
     const containerRect = canvasContainer.getBoundingClientRect();
@@ -342,52 +344,11 @@ function generateTestGraph() {
     drawMindmap();
 }
 
-async function saveGraph() {
-    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-    const data = {
-        nodes: nodes.map(node => ({
-            id: node.id,
-            x: node.x,
-            y: node.y,
-            text: node.text
-        })),
-        connections: connections.map(conn => ({
-            start: conn.start.id,
-            end: conn.end.id,
-            description: conn.description
-        }))
-    };
-
-    try {
-        const response = await fetch(`https://localhost:8080/api/data/${userId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            throw new Error('네트워크 응답이 올바르지 않습니다');
-        }
-
-        const result = await response.json();
-        
-        if (result.save_success) {
-            console.log('그래프가 성공적으로 저장되었습니다');
-        } else {
-            console.log('그래프 저장에 실패했습니다');
-        }
-    } catch (error) {
-        console.error('그래프 저장 중 오류 발생:', error);
-    }
-}
-
 async function loadGraph() {
     const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`https://localhost:8080/api/data/${userId}`);
+        const response = await fetch(`${base_url}/api/data/${userId}`);
 
         if (!response.ok) {
             throw new Error('네트워크 응답이 올바르지 않습니다');
@@ -408,18 +369,17 @@ async function loadGraph() {
     }
 }
 
-
-
-
 async function saveGraph() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-    const pageId = document.getElementById('pageSelector').value;
+    const activePage = document.querySelector('#pageList .page-item.active');
     
-    if (!pageId) {
+    if (!activePage) {
         console.log('선택된 페이지가 없습니다.');
         return;
     }
 
+    const pageId = activePage.dataset.pageId;
+    
     const data = {
         nodes: nodes.map(node => ({
             id: node.id,
@@ -435,7 +395,7 @@ async function saveGraph() {
     };
 
     try {
-        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages/${pageId}`, {
+        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -464,7 +424,7 @@ async function initializePages() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages`);
+        const response = await fetch(`${base_url}/api/users/${user_id}/pages`);
         if (!response.ok) {
             throw new Error('페이지 정보를 가져오는데 실패했습니다.');
         }
@@ -498,25 +458,28 @@ async function loadSelectedPage(pageId) {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages/${pageId}`);
+        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`);
         if (!response.ok) {
             throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
         }
         const pageData = await response.json();
         
+        const pageItems = document.querySelectorAll('#pageList .page-item');
+        pageItems.forEach(item => {
+            if (item.dataset.pageId === pageId) {
+                item.classList.add('active');
+                console.log('active 클래스 추가 :', pageId);
+            } else {
+                item.classList.remove('active');
+            }
+        });
+
         // 페이지 데이터로 노드와 연결 업데이트
         nodes = pageData.nodes;
         connections = pageData.connections;
         drawMindmap();
 
-        const pageItems = document.querySelectorAll('#pageList .page-item');
-        pageItems.forEach(item => {
-            if (item.dataset.pageId === pageId) {
-                item.classList.add('active');
-            } else {
-                item.classList.remove('active');
-            }
-        });
+        
     } catch (error) {
         console.error('페이지 로드 중 오류 발생:', error);
     }
@@ -529,7 +492,7 @@ async function createNewPage() {
     if(!pageName) pageName = '새 페이지';
 
     try {
-        const response = await fetch(`http://localhost:8080/api/users/${user_id}/pages`, {
+        const response = await fetch(`${base_url}/api/users/${user_id}/pages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
