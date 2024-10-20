@@ -21,7 +21,9 @@ const levelColors = [
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
-base_url = 'http://localhost:8080';
+// base_url = 'http://localhost:8080';
+base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
+
 
 // 캔버스 크기 설정
 function resizeCanvas() {
@@ -396,7 +398,7 @@ async function saveGraph() {
 
     try {
         const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`, {
-            method: 'POST',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -428,25 +430,28 @@ async function initializePages() {
         if (!response.ok) {
             throw new Error('페이지 정보를 가져오는데 실패했습니다.');
         }
-        const pages = await response.json();
         
         const pageList = document.getElementById('pageList');
-        pageList.innerHTML = ''; // 기존 목록 제거
         
-        pages.forEach(page => {
-            const li = document.createElement('li');
-            li.className = 'page-item';
-            li.textContent = page.name;
-            li.dataset.pageId = page.id;
-            li.addEventListener('click', () => loadSelectedPage(page.id));
-            pageList.appendChild(li);
-        });
-        
-        // 첫 번째 페이지 선택
-        if (pages.length > 0) {
-            loadSelectedPage(pages[0].id);
+        switch(response.status){
+            case 200:
+                const pages = await response.json();
+
+                pages.forEach(page => {
+                    const li = document.createElement('li');
+                    li.className = 'page-item';
+                    li.textContent = page.name;
+                    li.dataset.pageId = page.id;
+                    li.addEventListener('click', () => loadSelectedPage(page.id));
+                    pageList.appendChild(li);
+                });
+                break;
+            case 204:
+                await createNewPage();
+                break;
+            default:
+                throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
         }
-        else drawMindmap();
 
     } catch (error) {
         console.error('페이지 초기화 중 오류 발생:', error);
@@ -486,10 +491,8 @@ async function loadSelectedPage(pageId) {
 }
 
 // 새 페이지 생성 함수
-async function createNewPage() {
+async function createNewPage(pageName='새 페이지') {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-    const pageName = prompt('새 페이지의 이름을 입력하세요:');
-    if(!pageName) pageName = '새 페이지';
 
     try {
         const response = await fetch(`${base_url}/api/users/${user_id}/pages`, {
@@ -535,7 +538,12 @@ function setupButtonListeners() {
         drawMindmap();
     });
 
-    newPageBtn.addEventListener('click', createNewPage);
+    newPageBtn.addEventListener('click', () => {
+        const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
+        if (pageName !== null) {  // 사용자가 취소를 누르지 않았다면
+            createNewPage(pageName);
+        }
+    });
     testBtn.addEventListener('click', generateTestGraph);
     saveBtn.addEventListener('click', saveGraph);
 
