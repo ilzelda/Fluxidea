@@ -1,7 +1,7 @@
 package server
 
 import (
-	"demo/pkg/log"
+	"mindlink.io/mindlink/pkg/log"
 )
 
 var (
