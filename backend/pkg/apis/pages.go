@@ -173,9 +173,9 @@ func (ph *pageHandler) saveUserPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := struct {
-		SaveSuccess bool `json:"save_success"`
+		SuccessOK bool `json:"success_ok"`
 	}{
-		SaveSuccess: true,
+		SuccessOK: true,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
