@@ -1,10 +1,11 @@
 package main
 
 import (
-	"demo/pkg/log"
-	"demo/pkg/server"
 	"fmt"
 	"os"
+
+	"mindlink.io/mindlink/pkg/log"
+	"mindlink.io/mindlink/pkg/server"
 )
 
 var logger = log.Logger

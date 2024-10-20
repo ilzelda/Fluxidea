@@ -1,8 +1,9 @@
 package server
 
 import (
-	"demo/pkg/apis"
 	"net/http"
+
+	"mindlink.io/mindlink/pkg/apis"
 )
 
 type Server struct {

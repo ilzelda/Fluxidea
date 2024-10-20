@@ -1,4 +1,4 @@
-package apis
+package page
 
 import (
 	"encoding/json"
@@ -9,28 +9,29 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
-	"demo/pkg/log"
-	"demo/pkg/models"
+	"mindlink.io/mindlink/pkg/models"
 )
 
-const dataDir string = "data"
-
-var PageAPI = &pageHandler{
-	log: log.Logger.WithName("PageAPI"),
-}
-
-type pageHandler struct {
+type handler struct {
 	log logr.Logger
 }
 
-func (ph *pageHandler) RegsistRoute(mux *http.ServeMux) {
+func NewHandler(log logr.Logger) *handler {
+	return &handler{
+		log: log,
+	}
+}
+
+func (ph *handler) RegsistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/users/{user_id}/pages", ph.createUserPage)
 	mux.HandleFunc("GET /api/users/{user_id}/pages", ph.listUserPages)
 	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
 	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.saveUserPage)
 }
 
-func (ph *pageHandler) createUserPage(w http.ResponseWriter, r *http.Request) {
+const dataDir string = "data"
+
+func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
 	page := &models.Page{
@@ -64,10 +65,7 @@ func (ph *pageHandler) createUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := struct {
-		ID   uuid.UUID `json:"id"`
-		Name string    `json:"name"`
-	}{
+	response := respUserPage{
 		ID:   page.ID,
 		Name: page.Name,
 	}
@@ -75,7 +73,7 @@ func (ph *pageHandler) createUserPage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
+func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
 	userDirPath := filepath.Join(dataDir, userID)
@@ -86,11 +84,7 @@ func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
 	}
 	ph.log.Info("List user pages", "User", userID)
 
-	type result struct {
-		ID   uuid.UUID `json:"id"`
-		Name string    `json:"name"`
-	}
-	results := make([]result, 0, len(userPageNames))
+	var respBody respListUserPages = make([]respUserPage, 0, len(userPageNames))
 	// TODO: 최근 변경 시간 순으로 정렬
 	for _, page := range userPageNames {
 		pageFilePath := filepath.Join(userDirPath, page.Name())
@@ -101,26 +95,26 @@ func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
 		}
 		defer f.Close()
 
-		var r result
+		var r respUserPage
 		if err := json.NewDecoder(f).Decode(&r); err != nil {
 			http.Error(w, "failed to decode", http.StatusInternalServerError)
 			return
 		}
-		results = append(results, r)
+		respBody = append(respBody, r)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if len(results) == 0 {
+	if len(respBody) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if err := json.NewEncoder(w).Encode(&results); err != nil {
+	if err := json.NewEncoder(w).Encode(&respBody); err != nil {
 		http.Error(w, "failed to decode", http.StatusInternalServerError)
 		return
 	}
 }
 
-func (ph *pageHandler) loadUserPage(w http.ResponseWriter, r *http.Request) {
+func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Load user page", "User", userID, "PageID", pageID)
@@ -140,7 +134,7 @@ func (ph *pageHandler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(fileContent)
 }
 
-func (ph *pageHandler) saveUserPage(w http.ResponseWriter, r *http.Request) {
+func (ph *handler) saveUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Save user page", "User", userID, "PageID", pageID)
@@ -176,12 +170,9 @@ func (ph *pageHandler) saveUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := struct {
-		SuccessOK bool `json:"success_ok"`
-	}{
+	response := respSaveUserPage{
 		SuccessOK: true,
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)

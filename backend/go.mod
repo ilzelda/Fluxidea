@@ -1,4 +1,4 @@
-module demo
+module mindlink.io/mindlink
 
 go 1.23.0
 
