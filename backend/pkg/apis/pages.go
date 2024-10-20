@@ -78,8 +78,8 @@ func (ph *pageHandler) createUserPage(w http.ResponseWriter, r *http.Request) {
 func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
-	dirPath := filepath.Join(dataDir, userID)
-	entries, err := os.ReadDir(dirPath)
+	userDirPath := filepath.Join(dataDir, userID)
+	userPageNames, err := os.ReadDir(userDirPath)
 	if err != nil {
 		http.Error(w, "failed to read directory", http.StatusInternalServerError)
 		return
@@ -90,11 +90,11 @@ func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
 		ID   uuid.UUID `json:"id"`
 		Name string    `json:"name"`
 	}
-	results := make([]result, 0, len(entries))
+	results := make([]result, 0, len(userPageNames))
 	// TODO: 최근 변경 시간 순으로 정렬
-	for _, entry := range entries {
-		fileName := filepath.Join(dirPath, entry.Name())
-		f, err := os.Open(fileName)
+	for _, page := range userPageNames {
+		pageFilePath := filepath.Join(userDirPath, page.Name())
+		f, err := os.Open(pageFilePath)
 		if err != nil {
 			http.Error(w, "failed to open file", http.StatusInternalServerError)
 			return
@@ -110,6 +110,10 @@ func (ph *pageHandler) listUserPages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	if len(results) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if err := json.NewEncoder(w).Encode(&results); err != nil {
 		http.Error(w, "failed to decode", http.StatusInternalServerError)
 		return
