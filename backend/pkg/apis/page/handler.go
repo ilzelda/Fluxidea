@@ -79,7 +79,7 @@ func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
 	userDirPath := filepath.Join(dataDir, userID)
 	userPageNames, err := os.ReadDir(userDirPath)
 	if err != nil {
-		http.Error(w, "failed to read directory", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	ph.log.Info("List user pages", "User", userID)

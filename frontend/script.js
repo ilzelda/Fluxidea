@@ -21,8 +21,8 @@ const levelColors = [
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
-// base_url = 'http://localhost:8080';
-base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
+base_url = 'http://localhost:8080';
+// base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
 
 
 // 캔버스 크기 설정
