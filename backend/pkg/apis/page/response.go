@@ -12,7 +12,7 @@ type respUserPage struct {
 
 type respListUserPages []respUserPage
 
-type respSaveUserPage struct {
+type respUpdateUserPage struct {
 	SuccessOK bool `json:"success_ok"`
 }
 
