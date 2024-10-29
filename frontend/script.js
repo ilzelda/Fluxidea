@@ -446,8 +446,11 @@ async function initializePages() {
                 pages.forEach(page => {
                     const li = document.createElement('li');
                     li.className = 'page-item';
-                    li.textContent = page.name;
                     li.dataset.pageId = page.id;
+                    li.innerHTML = `
+                        <span class="page-icon">📄</span>
+                        <span class="page-name">${page.name}</span>
+                    `;
                     li.addEventListener('click', () => loadSelectedPage(page.id));
                     pageList.appendChild(li);
                 });
