@@ -129,8 +129,8 @@ function drawConnection(conn) {
 // 마인드맵 그리기
 function drawMindmap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    connections.forEach(drawConnection);
     nodes.forEach(drawNode);
+    connections.forEach(drawConnection);
 }
 
 // 노드 크기 계산 함수
@@ -346,30 +346,36 @@ function generateTestGraph() {
     drawMindmap();
 }
 
-async function loadGraph() {
-    const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
+// async function loadGraph() {
+//     const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
-    try {
-        const response = await fetch(`${base_url}/api/data/${userId}`);
+//     try {
+//         const response = await fetch(`${base_url}/api/data/${userId}`);
 
-        if (!response.ok) {
-            throw new Error('네트워크 응답이 올바르지 않습니다');
-        }
+//         if (!response.ok) {
+//             throw new Error('네트워크 응답이 올바르지 않습니다');
+//         }
 
-        const data = await response.json();
+//         const data = await response.json();
 
-        if (data.nodes && data.connections) {
-            nodes = data.nodes;
-            connections = data.connections;
-            drawMindmap();
-            console.log('그래프가 성공적으로 로드되었습니다');
-        } else {
-            console.log('그래프 로드에 실패했습니다');
-        }
-    } catch (error) {
-        console.error('그래프 로드 중 오류 발생:', error);
-    }
-}
+//         if (data.nodes && data.connections) {
+//             nodes = data.nodes;
+//             connections = data.connections.map(conn => ({
+//                 start: nodes.find(node => node.id === conn.start),
+//                 end: nodes.find(node => node.id === conn.end),
+//                 description: conn.description
+//             }));
+
+//             console.log('connections(loadGraph):', connections);
+//             drawMindmap();
+//             console.log('그래프가 성공적으로 로드되었습니다');
+//         } else {
+//             console.log('그래프 로드에 실패했습니다');
+//         }
+//     } catch (error) {
+//         console.error('그래프 로드 중 오류 발생:', error);
+//     }
+// }
 
 async function saveGraph() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
@@ -440,8 +446,11 @@ async function initializePages() {
                 pages.forEach(page => {
                     const li = document.createElement('li');
                     li.className = 'page-item';
-                    li.textContent = page.name;
                     li.dataset.pageId = page.id;
+                    li.innerHTML = `
+                        <span class="page-icon">📄</span>
+                        <span class="page-name">${page.name}</span>
+                    `;
                     li.addEventListener('click', () => loadSelectedPage(page.id));
                     pageList.appendChild(li);
                 });
@@ -460,6 +469,9 @@ async function initializePages() {
 
 // 선택된 페이지 로드 함수
 async function loadSelectedPage(pageId) {
+    nodes = [];
+    connections = [];
+
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
@@ -467,7 +479,6 @@ async function loadSelectedPage(pageId) {
         if (!response.ok) {
             throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
         }
-        const pageData = await response.json();
         
         const pageItems = document.querySelectorAll('#pageList .page-item');
         pageItems.forEach(item => {
@@ -480,9 +491,21 @@ async function loadSelectedPage(pageId) {
         });
 
         // 페이지 데이터로 노드와 연결 업데이트
-        nodes = pageData.nodes;
-        connections = pageData.connections;
-        drawMindmap();
+        const data = await response.json();
+
+        if (data.nodes && data.connections) {
+            nodes = data.nodes;
+            connections = data.connections.map(conn => ({
+                start: nodes.find(node => node.id === conn.start),
+                end: nodes.find(node => node.id === conn.end),
+                description: conn.description
+            }));
+
+            drawMindmap();
+        } else {
+            drawMindmap();
+            console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
+        }
 
         
     } catch (error) {
