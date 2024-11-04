@@ -17,9 +17,10 @@ docker-build:
 
 PORT := 8080
 CONTAINER_PORT := 8080
+DATA_PATH := data
 # Deploy the application (build Docker image and run)
 deploy: docker-build
-	${CONTAINER_RUNTIME} run --name ${NAME} -p ${PORT}:${CONTAINER_PORT} -d --rm ${IMAGE}
+	${CONTAINER_RUNTIME} run --name ${NAME} -p ${PORT}:${CONTAINER_PORT} -v $(DATA_PATH):/app/data -d --rm ${IMAGE}
 
 # Clean up built Go program
 clean:
