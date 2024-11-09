@@ -242,18 +242,31 @@ function organizeNodes() {
     // 그래프 구조 생성
     const graph = {};
     nodes.forEach(node => {
+        console.log('node:', node);
         graph[node.id] = { node: node, children: [], parents: [] };
     });
     connections.forEach(conn => {
         graph[conn.start.id].children.push(conn.end.id);
         graph[conn.end.id].parents.push(conn.start.id);
     });
+    console.log('graph:', graph);
 
     // 루트 노드 찾기 (들어오는 간선이 없는 노드)
     const rootNodes = nodes.filter(node => graph[node.id].parents.length === 0);
-
+    // 루트 노드가 없으면 자식이 있는 노드를 루트 노드로 설정
+    if (rootNodes.length === 0) {
+        for(const node of nodes) {
+            if (graph[node.id].children.length != 0) {
+                rootNodes.push(node);
+                break;
+            }
+        };
+    }
+    console.log('rootNodes:', rootNodes);
     // BFS로 레벨 할당
     const queue = rootNodes.map(node => ({id: node.id, level: 0}));
+    console.log('queue:', queue);
+
     const visited = new Set();
 
     while (queue.length > 0) {
@@ -279,14 +292,16 @@ function organizeNodes() {
     });
 
     // 레벨별 노드 그룹화
-    const levelGroups = {};
+    const levelGroups = [];
     nodes.forEach(node => {
         if (!levelGroups[node.level]) levelGroups[node.level] = [];
         levelGroups[node.level].push(node);
     });
 
     // 노드 위치 설정
-    const levelWidth = Math.min(250, canvas.width / 5);
+    console.log('levelGroups', levelGroups);
+
+    const levelWidth = Math.min(250, canvas.width / levelGroups.length);
     Object.entries(levelGroups).forEach(([level, nodesInLevel]) => {
         const centerY = canvas.height / 2;
         const levelX = Number(level) * levelWidth + levelWidth / 2;
@@ -493,17 +508,18 @@ async function loadSelectedPage(pageId) {
         // 페이지 데이터로 노드와 연결 업데이트
         const data = await response.json();
 
-        if (data.nodes && data.connections) {
+        if (data.nodes) {
             nodes = data.nodes;
+        }
+        if(data.connections) {
             connections = data.connections.map(conn => ({
                 start: nodes.find(node => node.id === conn.start),
                 end: nodes.find(node => node.id === conn.end),
                 description: conn.description
             }));
-
-            drawMindmap();
-        } else {
-            drawMindmap();
+        }
+        drawMindmap();
+        if(!(data.nodes && data.connections)) {
             console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
         }
 
