@@ -199,7 +199,6 @@ function drawConnection(conn) {
 //     nodes.forEach(drawNode);
 //     connections.forEach(drawConnection);
 // }
-
 function drawMindmap(){
     const gdata = {
         "nodes" : nodes.map(node => ({"id": node.id, "name" : node.text})),
@@ -209,7 +208,10 @@ function drawMindmap(){
 
     const Graph = ForceGraph3D()
     (document.getElementById('3d-graph'))
-        .graphData(gdata);
+        .linkOpacity(0.5)
+        .graphData(gdata)
+        .linkDirectionalArrowLength(3.5)
+        .linkDirectionalArrowRelPos(1);
 }
 
 // 노드 크기 계산 함수
