@@ -1,6 +1,6 @@
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
-const ctx = canvas.getContext('2d');
+// const ctx = canvas.getContext('2d');
 
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
@@ -194,10 +194,22 @@ function drawConnection(conn) {
 }
 
 // 마인드맵 그리기
-function drawMindmap() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    nodes.forEach(drawNode);
-    connections.forEach(drawConnection);
+// function drawMindmap() {
+//     ctx.clearRect(0, 0, canvas.width, canvas.height);
+//     nodes.forEach(drawNode);
+//     connections.forEach(drawConnection);
+// }
+
+function drawMindmap(){
+    const gdata = {
+        "nodes" : nodes.map(node => ({"id": node.id, "name" : node.text})),
+        "links" : connections.map(conn => ({"source": conn.start.id, "target": conn.end.id}))
+    }
+    console.log('gdata:', gdata);
+
+    const Graph = ForceGraph3D()
+    (document.getElementById('3d-graph'))
+        .graphData(gdata);
 }
 
 // 노드 크기 계산 함수
@@ -636,10 +648,12 @@ async function loadSelectedPage(pageId) {
                 description: conn.description
             }));
         }
-        drawMindmap();
         if(!(data.nodes && data.connections)) {
             console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
+            console.log('\tnode:', data.nodes);
+            console.log('\tconnections:', data.connections);
         }
+        drawMindmap();
 
         
     } catch (error) {
@@ -793,11 +807,11 @@ function setupCanvasListeners() {
 }
 
 function initializeApp() {
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    // resizeCanvas();
+    // window.addEventListener('resize', resizeCanvas);
     initializePages();
     setupButtonListeners();
-    setupCanvasListeners();
+    // setupCanvasListeners();
 }
 
 window.addEventListener('load', initializeApp);
