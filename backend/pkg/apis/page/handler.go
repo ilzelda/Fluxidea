@@ -35,7 +35,9 @@ func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
 	page := &models.Page{
-		ID: uuid.New(),
+		ID:            uuid.New(),
+		NodeNum:       0,
+		ConnectionNum: 0,
 	}
 	if err := json.NewDecoder(r.Body).Decode(page); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -155,6 +157,9 @@ func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+
+	page.NodeNum = len(page.Nodes)
+	page.ConnectionNum = len(page.Connections)
 
 	f, err = os.OpenFile(pageFilePath, os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {

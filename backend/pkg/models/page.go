@@ -3,10 +3,12 @@ package models
 import "github.com/google/uuid"
 
 type Page struct {
-	ID          uuid.UUID    `json:"id"`
-	Name        string       `json:"name"`
-	Nodes       []Node       `json:"nodes,omitempty"`
-	Connections []Connection `json:"connections,omitempty"`
+	ID            uuid.UUID    `json:"id"`
+	Name          string       `json:"name"`
+	Nodes         []Node       `json:"nodes,omitempty"`
+	Connections   []Connection `json:"connections,omitempty"`
+	NodeNum       int          `json:"nodeNum"`
+	ConnectionNum int          `json:"connectionNum"`
 }
 
 type Node struct {

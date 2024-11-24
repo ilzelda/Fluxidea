@@ -6,8 +6,10 @@ import (
 )
 
 type respUserPage struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	NodeNum       int       `json:"nodeNum"`
+	ConnectionNum int       `json:"connectionNum"`
 }
 
 type respListUserPages []respUserPage
@@ -18,7 +20,9 @@ type respUpdateUserPage struct {
 
 func convertPageIntoResp(page *models.Page) respUserPage {
 	return respUserPage{
-		ID:   page.ID,
-		Name: page.Name,
+		ID:            page.ID,
+		Name:          page.Name,
+		NodeNum:       page.NodeNum,
+		ConnectionNum: page.ConnectionNum,
 	}
 }
