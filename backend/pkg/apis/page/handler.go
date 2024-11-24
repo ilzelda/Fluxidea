@@ -27,6 +27,7 @@ func (ph *handler) RegsistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/users/{user_id}/pages", ph.listUserPages)
 	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
 	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
+	mux.HandleFunc("DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
 }
 
 const dataDir string = "data"
@@ -172,7 +173,28 @@ func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := respUpdateUserPage{
+	response := respModifyUserPage{
+		SuccessOK: true,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (ph *handler) deleteUserPage(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("user_id")
+	pageID := r.PathValue("page_id")
+	ph.log.Info("Delete user page", "User", userID, "PageID", pageID)
+
+	filePath := filepath.Join(dataDir, userID, pageID+".json")
+	if err := os.Remove(filePath); err != nil {
+		http.Error(w, "failed to remove file", http.StatusBadRequest)
+		return
+	}
+
+	response := respModifyUserPage{
 		SuccessOK: true,
 	}
 	w.Header().Set("Content-Type", "application/json")
