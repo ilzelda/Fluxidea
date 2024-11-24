@@ -26,7 +26,7 @@ func (ph *handler) RegsistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/users/{user_id}/pages", ph.createUserPage)
 	mux.HandleFunc("GET /api/users/{user_id}/pages", ph.listUserPages)
 	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
-	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.saveUserPage)
+	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
 }
 
 const dataDir string = "data"
@@ -65,10 +65,7 @@ func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := respUserPage{
-		ID:   page.ID,
-		Name: page.Name,
-	}
+	response := convertPageIntoResp(page)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -134,10 +131,10 @@ func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(fileContent)
 }
 
-func (ph *handler) saveUserPage(w http.ResponseWriter, r *http.Request) {
+func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 	pageID := r.PathValue("page_id")
-	ph.log.Info("Save user page", "User", userID, "PageID", pageID)
+	ph.log.Info("Update user page", "User", userID, "PageID", pageID)
 
 	pageFilePath := filepath.Join(dataDir, userID, pageID+".json")
 	f, err := os.Open(pageFilePath)
@@ -170,7 +167,7 @@ func (ph *handler) saveUserPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := respSaveUserPage{
+	response := respUpdateUserPage{
 		SuccessOK: true,
 	}
 	w.Header().Set("Content-Type", "application/json")
