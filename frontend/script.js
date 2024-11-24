@@ -11,7 +11,10 @@ const newPageBtn = document.getElementById('newPageBtn');
 
 let nodes = [];
 let connections = [];
+let graph = {};
+let parentNodes = [];
 let isConnectMode = false;
+let isSelectingParent = false;
 let selectedNode = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
@@ -27,16 +30,8 @@ base_url = 'http://localhost:8080';
 // 전역 변수 추가
 let selectedConnection = null;
 
-// 캔버스 크기 설정
-function resizeCanvas() {
-    const containerRect = canvasContainer.getBoundingClientRect();
-    canvas.width = containerRect.width;
-    canvas.height = containerRect.height;
-    drawMindmap();
-}
-
 // 노드 그리기
-function drawNode(node) {
+function drawNode(node, highlight = false) {
     const maxWidth = 150; // 최대 너비를 줄임
     const padding = 5; // 패딩을 줄임
     const lineHeight = 16; // 줄 높이를 줄임
@@ -71,7 +66,23 @@ function drawNode(node) {
     } else {
         ctx.fillStyle = 'white';
     }
-    ctx.strokeStyle = 'black';
+    if (selectedNode === node) {
+        ctx.lineWidth = 3;
+    }
+    else {
+        ctx.lineWidth = 1;
+    }
+    
+    if(highlight) {
+        if(isSelectingParent) ctx.strokeStyle = 'red';
+        else ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+    }
+    else {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
+    }
+
     ctx.beginPath();
     ctx.roundRect(node.x - nodeWidth / 2, node.y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
     ctx.fill();
@@ -119,12 +130,14 @@ function drawNode(node) {
         ctx.moveTo(iconX + iconSize - 6, iconY + 6);
         ctx.lineTo(iconX + 6, iconY + iconSize - 6);
         ctx.stroke();
-        ctx.lineWidth = 1;
-    }
+
+        
+    } 
+    
 }
 
 // 연결선 그리기
-function drawConnection(conn) {
+function drawConnection(conn, highlight = false) {
     const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
     const startY = conn.start.y;
     const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
@@ -135,11 +148,17 @@ function drawConnection(conn) {
     const midY = (startY + endY) / 2;
 
     // 연결선 그리기
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(endX, endY);
-    ctx.stroke();
-
+    if (highlight) {
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+    }
+    else{
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+    }
+    
     // 화살표 그리기
     const angle = Math.atan2(endY - startY, endX - startX);
     ctx.save();
@@ -228,129 +247,15 @@ function calculateNodeSize(node) {
     node.height = lines.length * lineHeight + padding * 2;
 }
 
-// onMouseDown 함수 수정
-function onMouseDown(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // 선택된 노드의 휴지통 아이콘 클릭 확인
-    if (selectedNode && selectedNode.deleteIcon) {
-        const icon = selectedNode.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width &&
-            y >= icon.y && y <= icon.y + icon.height) {
-            if (confirm('이 노드를 삭제하시겠습니까?')) {
-                deleteNode(selectedNode);
-            }
-            return;
-        }
-    }
-
-    // 선택된 연결선의 삭제 아이콘 클릭 확인
-    if (selectedConnection && selectedConnection.deleteIcon) {
-        const icon = selectedConnection.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width &&
-            y >= icon.y && y <= icon.y + icon.height) {
-            if (confirm('이 연결선을 삭제하시겠습니까?')) {
-                deleteConnection(selectedConnection);
-            }
-            return;
-        }
-    }
-
-    // 노드 클릭 확인
-    const clickedNode = nodes.find(node => 
-        x >= node.x - node.width / 2 &&
-        x <= node.x + node.width / 2 &&
-        y >= node.y - node.height / 2 &&
-        y <= node.y + node.height / 2
-    );
-
-    if (clickedNode) {
-        if (isConnectMode) {
-            selectedNode = clickedNode;
-            isDragging = true;
-            canvas.style.cursor = 'crosshair';
-        } else {
-            if (selectedNode === clickedNode) {
-                selectedNode = null;
-            } else {
-                selectedNode = clickedNode;
-                isDragging = true;
-                canvas.style.cursor = 'grabbing';
-            }
-        }
-        selectedConnection = null; // 노드 선택시 연결선 선택 해제
-    } else {
-        // 연결선 클릭 확인
-        const clickedConnection = connections.find(conn => isClickOnConnection(x, y, conn));
-        if (clickedConnection) {
-            if (selectedConnection === clickedConnection) {
-                selectedConnection = null;
-            } else {
-                selectedConnection = clickedConnection;
-            }
-            selectedNode = null; // 연결선 선택시 노드 선택 해제
-        } else {
-            // 빈 공간 클릭
-            selectedNode = null;
-            selectedConnection = null;
-        }
-    }
-    
-    drawMindmap();
-}
-
-function onMouseMove(e) {
-    if (!isDragging || !selectedNode) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    if (isConnectMode) {
-        drawMindmap();
-        ctx.beginPath();
-        ctx.moveTo(selectedNode.x, selectedNode.y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-    } else {
-        selectedNode.x = x;
-        selectedNode.y = y;
-        drawMindmap();
-    }
-}
-
-function onMouseUp(e) {
-    if (!isDragging || !selectedNode) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    if (isConnectMode) {
-        const targetNode = nodes.find(node => 
-            node !== selectedNode &&
-            x >= node.x - node.width / 2 &&
-            x <= node.x + node.width / 2 &&
-            y >= node.y - node.height / 2 &&
-            y <= node.y + node.height / 2
-        );
-
-        if (targetNode) {
-            const description = prompt('연결선의 설명을 입력하세요:');
-            connections.push({
-                start: selectedNode,
-                end: targetNode,
-                description: description
-            });
-        }
-        selectedNode = null; // 연결 모드에서는 선택 해제
-    }
-
-    isDragging = false;
-    canvas.style.cursor = 'default';
-    drawMindmap();
+function generateGraphStructure() {
+    nodes.forEach(node => {
+        graph[node.id] = { node: node, children: [], parents: [] };
+    });
+    connections.forEach(conn => {
+        graph[conn.start.id].children.push(conn.end.id);
+        graph[conn.end.id].parents.push(conn.start.id);
+    });
+    return graph;
 }
 
 // 노드 정렬 함수
@@ -358,15 +263,7 @@ function organizeNodes() {
     if (nodes.length === 0) return;
 
     // 그래프 구조 생성
-    const graph = {};
-    nodes.forEach(node => {
-        console.log('node:', node);
-        graph[node.id] = { node: node, children: [], parents: [] };
-    });
-    connections.forEach(conn => {
-        graph[conn.start.id].children.push(conn.end.id);
-        graph[conn.end.id].parents.push(conn.start.id);
-    });
+    generateGraphStructure();
     console.log('graph:', graph);
 
     // 루트 노드 찾기 (들어오는 간선이 없는 노드)
@@ -479,37 +376,6 @@ function generateTestGraph() {
     drawMindmap();
 }
 
-// async function loadGraph() {
-//     const userId = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-
-//     try {
-//         const response = await fetch(`${base_url}/api/data/${userId}`);
-
-//         if (!response.ok) {
-//             throw new Error('네트워크 응답이 올바르지 않습니다');
-//         }
-
-//         const data = await response.json();
-
-//         if (data.nodes && data.connections) {
-//             nodes = data.nodes;
-//             connections = data.connections.map(conn => ({
-//                 start: nodes.find(node => node.id === conn.start),
-//                 end: nodes.find(node => node.id === conn.end),
-//                 description: conn.description
-//             }));
-
-//             console.log('connections(loadGraph):', connections);
-//             drawMindmap();
-//             console.log('그래프가 성공적으로 로드되었습니다');
-//         } else {
-//             console.log('그래프 로드에 실패했습니다');
-//         }
-//     } catch (error) {
-//         console.error('그래프 로드 중 오류 발생:', error);
-//     }
-// }
-
 async function saveGraph() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
     const activePage = document.querySelector('#pageList .page-item.active');
@@ -600,7 +466,6 @@ async function initializePages() {
     }
 }
 
-// 선택된 페이지 로드 함수
 async function loadSelectedPage(pageId) {
     nodes = [];
     connections = [];
@@ -636,18 +501,18 @@ async function loadSelectedPage(pageId) {
                 description: conn.description
             }));
         }
+
+        generateGraphStructure();
         drawMindmap();
+        
         if(!(data.nodes && data.connections)) {
             console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
         }
-
-        
     } catch (error) {
         console.error('페이지 로드 중 오류 발생:', error);
     }
 }
 
-// 새 페이지 생성 함수
 async function createNewPage(pageName='새 페이지') {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
@@ -689,7 +554,26 @@ async function createNewPage(pageName='새 페이지') {
     
 }
 
-// 노드 삭제 함수 추가
+function createNode(x, y) {
+    let text = prompt('노드 텍스트를 입력하세요:');
+    if (text === null) text = "빈 노드";
+
+    if (x == null ) { x = Math.random() * (canvas.width - 40) + 20;}
+    if (y == null) { y = Math.random() * (canvas.height - 40) + 20;}
+    
+    const node = { 
+        id: nextNodeId++,
+        x, 
+        y, 
+        text
+    };
+
+    calculateNodeSize(node);
+    nodes.push(node);
+    console.log('New node:', x, y, text); // 디버깅용
+    return node;
+}
+
 function deleteNode(node) {
     // 연결된 모든 connection 삭제
     connections = connections.filter(conn => 
@@ -703,7 +587,16 @@ function deleteNode(node) {
     drawMindmap();
 }
 
-// 연결선 삭제 함수
+function createConnection(start, end) {
+    let description = prompt('연결선의 설명을 입력하세요:');
+    if (description === null) description = "연결선";
+    connections.push({
+        start: start,
+        end: end,
+        description: description
+    });
+}
+
 function deleteConnection(connection) {
     connections = connections.filter(conn => conn !== connection);
     selectedConnection = null;
@@ -747,6 +640,132 @@ function isClickOnConnection(x, y, conn) {
     return distance < 5; // 5픽셀 이내 클릭을 허용
 }
 
+function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 선택된 노드의 휴지통 아이콘 클릭 확인
+    if (selectedNode && selectedNode.deleteIcon) {
+        const icon = selectedNode.deleteIcon;
+        if (x >= icon.x && x <= icon.x + icon.width &&
+            y >= icon.y && y <= icon.y + icon.height) {
+            if (confirm('이 노드를 삭제하시겠습니까?')) {
+                deleteNode(selectedNode);
+            }
+            return;
+        }
+    }
+
+    // 선택된 연결선의 삭제 아이콘 클릭 확인
+    if (selectedConnection && selectedConnection.deleteIcon) {
+        const icon = selectedConnection.deleteIcon;
+        if (x >= icon.x && x <= icon.x + icon.width &&
+            y >= icon.y && y <= icon.y + icon.height) {
+            if (confirm('이 연결선을 삭제하시겠습니까?')) {
+                deleteConnection(selectedConnection);
+            }
+            return;
+        }
+    }
+
+    // 노드 클릭 확인
+    const clickedNode = nodes.find(node => 
+        x >= node.x - node.width / 2 &&
+        x <= node.x + node.width / 2 &&
+        y >= node.y - node.height / 2 &&
+        y <= node.y + node.height / 2
+    );
+
+    if (clickedNode) {
+        if (isConnectMode) {
+            selectedNode = clickedNode;
+            isDragging = true;
+            canvas.style.cursor = 'crosshair';
+        } else {
+            if (selectedNode === clickedNode) {
+                selectedNode = null;
+            } else {
+                selectedNode = clickedNode;
+                isDragging = true;
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+        selectedConnection = null; // 노드 선택시 연결선 선택 해제
+    } else {
+        // 연결선 클릭 확인
+        const clickedConnection = connections.find(conn => isClickOnConnection(x, y, conn));
+        if (clickedConnection) {
+            if (selectedConnection === clickedConnection) {
+                selectedConnection = null;
+            } else {
+                selectedConnection = clickedConnection;
+            }
+            selectedNode = null; // 연결선 선택시 노드 선택 해제
+        } else {
+            // 빈 공간 클릭
+            selectedNode = null;
+            selectedConnection = null;
+        }
+    }
+    
+    drawMindmap();
+}
+
+function onMouseMove(e) {
+    if (!isDragging || !selectedNode) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (isConnectMode) {
+        drawMindmap();
+        ctx.beginPath();
+        ctx.moveTo(selectedNode.x, selectedNode.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    } else {
+        selectedNode.x = x;
+        selectedNode.y = y;
+        drawMindmap();
+    }
+}
+
+function onMouseUp(e) {
+    if (!isDragging || !selectedNode) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (isConnectMode) {
+        const targetNode = nodes.find(node => 
+            node !== selectedNode &&
+            x >= node.x - node.width / 2 &&
+            x <= node.x + node.width / 2 &&
+            y >= node.y - node.height / 2 &&
+            y <= node.y + node.height / 2
+        );
+
+        if (targetNode) {
+            createConnection(selectedNode, targetNode);
+        }
+        selectedNode = null; // 연결 모드에서는 선택 해제
+    }
+
+    isDragging = false;
+    canvas.style.cursor = 'default';
+    drawMindmap();
+}
+
+function resizeCanvas() {
+    const containerRect = canvasContainer.getBoundingClientRect();
+    canvas.width = containerRect.width;
+    canvas.height = containerRect.height;
+    drawMindmap();
+}
+
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
         organizeNodes();
@@ -763,21 +782,8 @@ function setupButtonListeners() {
     saveBtn.addEventListener('click', saveGraph);
 
     newNodeBtn.addEventListener('click', () => {
-        const text = prompt('노드 텍스트를 입력하세요:');
-        if (text) {
-            const x = Math.random() * (canvas.width - 40) + 20;
-            const y = Math.random() * (canvas.height - 40) + 20;
-            const node = { 
-                id: nextNodeId++,
-                x, 
-                y, 
-                text
-            };
-            calculateNodeSize(node);
-            nodes.push(node);
-            console.log('New node:', x, y); // 디버깅용
-            drawMindmap();
-        }
+        createNode()
+        drawMindmap();
     });
 
     connectModeBtn.addEventListener('click', () => {
@@ -792,12 +798,54 @@ function setupCanvasListeners() {
     canvas.addEventListener('mouseup', onMouseUp);
 }
 
+function setupKeyboardListeners() {
+    window.addEventListener('keydown', e => {
+        if (selectedNode) {
+            // 자식 만들기
+            if (e.key === 'Tab') {
+                const newnode = createNode(x = selectedNode.x + canvas.width*0.1, y=selectedNode.y);
+                createConnection(selectedNode, newnode);
+                selectedNode = newnode;
+                drawMindmap();
+            }
+
+            // 
+            if (e.shiftKey && e.key === 'Tab') {
+                connections.forEach(conn => {
+                    if(conn.end === selectedNode) {
+                        isSelectingParent = true;
+                        drawConnection(conn, highlight = true);
+                    }
+                });
+                parentNodes = graph[selectedNode.id].parents;
+                selectedNode = parentNodes[0];
+            }
+        }
+        if (isSelectingParent) {
+            if (e.key === 'ArrowUp') {
+                const currentIndex = parentNodes.indexOf(selectedNode);
+                const nextIndex = (currentIndex - 1 + parentNodes.length) % parentNodes.length;
+                selectedNode = parentNodes[nextIndex];
+                drawNode(selectedNode, highlight = true);
+            } else if (e.key === 'ArrowDown') {
+                const currentIndex = parentNodes.indexOf(selectedNode);
+                const nextIndex = (currentIndex + 1) % parentNodes.length;
+                selectedNode = parentNodes[nextIndex];
+                drawNode(selectedNode, highlight = true);
+            } else if (e.key === 'Enter') {
+                isSelectingParent = false;
+                drawNode(selectedNode, highlight = true);
+            }
+        }
+    });
+}
 function initializeApp() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     initializePages();
     setupButtonListeners();
     setupCanvasListeners();
+    setupKeyboardListeners(); 
 }
 
 window.addEventListener('load', initializeApp);
