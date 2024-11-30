@@ -1,4 +1,4 @@
 {
     "port": "8080",
-    "root_path": "static"
+    "root_path": "/home/MindLink/frontend"
 }
