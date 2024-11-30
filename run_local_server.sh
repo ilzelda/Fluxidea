@@ -1,5 +1,6 @@
 #!/bin/sh
 
-cp -r frontend/ backend/static/
+mkdir -p backend/static/
+cp frontend/* backend/static/
 
 cd backend && make run
