@@ -5,14 +5,10 @@ const canvas = document.getElementById('mindmapCanvas');
 // const ctx = canvas.getContext('2d');
 
 const renderer = new THREE.WebGLRenderer({ canvas });
-renderer.setSize(canvasContainer.innerWidth, canvasContainer.innerHeight);
+renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(100, 100, 100);
+const camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
 camera.lookAt(0, 0, 0);
-const light = new THREE.PointLight(0xffffff, 1);
-light.position.set(100, 100, 100);
-scene.add(light);
 
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
@@ -28,8 +24,8 @@ let selectedNode = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
 
-const nodeGeometry = new THREE.SphereGeometry(3);
-const nodeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+const nodeGeometry = new THREE.SphereGeometry(10);
+const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 const nodeObjects = {};
 
 const levelColors = [
@@ -48,7 +44,12 @@ function resizeCanvas() {
     const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
-    drawMindmap();
+
+    renderer.setSize(containerRect.width, containerRect.height);
+    
+    // 카메라 종횡비 업데이트
+    camera.aspect = containerRect.width / containerRect.height;
+    camera.updateProjectionMatrix();
 }
 
 // 노드 그리기
@@ -216,20 +217,28 @@ function drawConnection(conn) {
 //     connections.forEach(drawConnection);
 // }
 
-function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-}
-
 
 function drawMindmap() {
+    requestAnimationFrame(drawMindmap);
+    
+    let x_sum = 0;
+    let y_sum = 0;
+
     nodes.forEach(node => {
         const sphere = new THREE.Mesh(nodeGeometry, nodeMaterial);
-        sphere.position.set(node.x, node.y, node.z);
+        x_sum += node.x;
+        y_sum += node.y;
+        sphere.position.set(node.x, node.y, 10);
         scene.add(sphere);
         nodeObjects[node.id] = sphere;
     });
 
+    let cam_x = x_sum / nodes.length;
+    let cam_y = y_sum / nodes.length;
+
+    console.log('x_sum', x_sum, 'cam_x:', cam_x, 'cam_y:', cam_y);
+    camera.position.set(cam_x, cam_y, 400);
+    
     // 링크 추가
     const linkMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
     connections.forEach(link => {
@@ -237,17 +246,16 @@ function drawMindmap() {
         const targetNode = nodeObjects[link.end.id];
         const geometry = new THREE.BufferGeometry();
         const vertices = new Float32Array([
-            sourceNode.position.x, sourceNode.position.y, 10,
-            targetNode.position.x, targetNode.position.y, 10
+            sourceNode.position.x, sourceNode.position.y, sourceNode.position.z,
+            targetNode.position.x, targetNode.position.y, targetNode.position.z
         ]);
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
 
         const line = new THREE.Line(geometry, linkMaterial);
         scene.add(line);
     });
-    
-    animate();
 
+    renderer.render(scene, camera);
 }
 
 // 노드 크기 계산 함수
@@ -846,8 +854,8 @@ function setupCanvasListeners() {
 }
 
 function initializeApp() {
-    // resizeCanvas();
-    // window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
     initializePages();
     setupButtonListeners();
     // setupCanvasListeners();
