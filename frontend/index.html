@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>마인드맵</title>
     <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@v0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.170.0/examples/jsm/"
+          }
+        }
+    </script>
+    <script type='module' src="script.js"></script>
 </head>
 <body>
     <div class="container">
@@ -23,12 +32,9 @@
                 <button id="saveBtn">저장</button>
             </div>
             <div id="canvasContainer">
-                <!-- <canvas id="mindmapCanvas"></canvas> -->
-                <div id="3d-graph"></div>
+                <canvas id="mindmapCanvas"></canvas>
             </div>
         </div>
     </div>
-    <script src="//unpkg.com/3d-force-graph"></script>
-    <script src="script.js"></script>
 </body>
 </html>

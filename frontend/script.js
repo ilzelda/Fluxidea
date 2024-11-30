@@ -1,6 +1,18 @@
+import * as THREE from 'three';
+
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
 // const ctx = canvas.getContext('2d');
+
+const renderer = new THREE.WebGLRenderer({ canvas });
+renderer.setSize(canvasContainer.innerWidth, canvasContainer.innerHeight);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(100, 100, 100);
+camera.lookAt(0, 0, 0);
+const light = new THREE.PointLight(0xffffff, 1);
+light.position.set(100, 100, 100);
+scene.add(light);
 
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
@@ -16,12 +28,16 @@ let selectedNode = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
 
+const nodeGeometry = new THREE.SphereGeometry(3);
+const nodeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+const nodeObjects = {};
+
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
-base_url = 'http://localhost:8080';
+const base_url = 'http://localhost:8080';
 // base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
 
 // 전역 변수 추가
@@ -199,19 +215,39 @@ function drawConnection(conn) {
 //     nodes.forEach(drawNode);
 //     connections.forEach(drawConnection);
 // }
-function drawMindmap(){
-    const gdata = {
-        "nodes" : nodes.map(node => ({"id": node.id, "name" : node.text})),
-        "links" : connections.map(conn => ({"source": conn.start.id, "target": conn.end.id}))
-    }
-    console.log('gdata:', gdata);
 
-    const Graph = ForceGraph3D()
-    (document.getElementById('3d-graph'))
-        .linkOpacity(0.5)
-        .graphData(gdata)
-        .linkDirectionalArrowLength(3.5)
-        .linkDirectionalArrowRelPos(1);
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+
+
+function drawMindmap() {
+    nodes.forEach(node => {
+        const sphere = new THREE.Mesh(nodeGeometry, nodeMaterial);
+        sphere.position.set(node.x, node.y, node.z);
+        scene.add(sphere);
+        nodeObjects[node.id] = sphere;
+    });
+
+    // 링크 추가
+    const linkMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
+    connections.forEach(link => {
+        const sourceNode = nodeObjects[link.start.id];
+        const targetNode = nodeObjects[link.end.id];
+        const geometry = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+            sourceNode.position.x, sourceNode.position.y, 10,
+            targetNode.position.x, targetNode.position.y, 10
+        ]);
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+        const line = new THREE.Line(geometry, linkMaterial);
+        scene.add(line);
+    });
+    
+    animate();
+
 }
 
 // 노드 크기 계산 함수
@@ -652,6 +688,7 @@ async function loadSelectedPage(pageId) {
         }
         if(!(data.nodes && data.connections)) {
             console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
+            console.log('\tdata:', data);
             console.log('\tnode:', data.nodes);
             console.log('\tconnections:', data.connections);
         }
