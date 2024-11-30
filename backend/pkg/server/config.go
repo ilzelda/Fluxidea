@@ -14,7 +14,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Port:     "8080",
-		RootPath: "wwwroot",
+		RootPath: "static",
 	}
 }
 
