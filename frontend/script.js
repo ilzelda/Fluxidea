@@ -502,12 +502,13 @@ async function loadSelectedPage(pageId) {
             }));
         }
 
-        generateGraphStructure();
-        drawMindmap();
-        
         if(!(data.nodes && data.connections)) {
             console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
         }
+        else{
+            generateGraphStructure();
+        }
+        drawMindmap();
     } catch (error) {
         console.error('페이지 로드 중 오류 발생:', error);
     }
