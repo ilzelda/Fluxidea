@@ -1,3 +1,6 @@
 data/
 
 static/
+
+bin/
+.vscode/
