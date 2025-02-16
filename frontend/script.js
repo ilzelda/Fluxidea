@@ -7,7 +7,7 @@ const canvas = document.getElementById('mindmapCanvas');
 const renderer = new THREE.WebGLRenderer({ canvas });
 renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(50, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
 camera.lookAt(0, 0, 0);
 
 const newNodeBtn = document.getElementById('newNodeBtn');
@@ -829,132 +829,6 @@ function isClickOnConnection(x, y, conn) {
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     return distance < 5; // 5픽셀 이내 클릭을 허용
-}
-
-function onMouseDown(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // 선택된 노드의 휴지통 아이콘 클릭 확인
-    if (selectedNode && selectedNode.deleteIcon) {
-        const icon = selectedNode.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width &&
-            y >= icon.y && y <= icon.y + icon.height) {
-            if (confirm('이 노드를 삭제하시겠습니까?')) {
-                deleteNode(selectedNode);
-            }
-            return;
-        }
-    }
-
-    // 선택된 연결선의 삭제 아이콘 클릭 확인
-    if (selectedConnection && selectedConnection.deleteIcon) {
-        const icon = selectedConnection.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width &&
-            y >= icon.y && y <= icon.y + icon.height) {
-            if (confirm('이 연결선을 삭제하시겠습니까?')) {
-                deleteConnection(selectedConnection);
-            }
-            return;
-        }
-    }
-
-    // 노드 클릭 확인
-    const clickedNode = nodes.find(node => 
-        x >= node.x - node.width / 2 &&
-        x <= node.x + node.width / 2 &&
-        y >= node.y - node.height / 2 &&
-        y <= node.y + node.height / 2
-    );
-
-    if (clickedNode) {
-        if (isConnectMode) {
-            selectedNode = clickedNode;
-            isDragging = true;
-            canvas.style.cursor = 'crosshair';
-        } else {
-            if (selectedNode === clickedNode) {
-                selectedNode = null;
-            } else {
-                selectedNode = clickedNode;
-                isDragging = true;
-                canvas.style.cursor = 'grabbing';
-            }
-        }
-        selectedConnection = null; // 노드 선택시 연결선 선택 해제
-    } else {
-        // 연결선 클릭 확인
-        const clickedConnection = connections.find(conn => isClickOnConnection(x, y, conn));
-        if (clickedConnection) {
-            if (selectedConnection === clickedConnection) {
-                selectedConnection = null;
-            } else {
-                selectedConnection = clickedConnection;
-            }
-            selectedNode = null; // 연결선 선택시 노드 선택 해제
-        } else {
-            // 빈 공간 클릭
-            selectedNode = null;
-            selectedConnection = null;
-        }
-    }
-    
-    drawMindmap();
-}
-
-function onMouseMove(e) {
-    if (!isDragging || !selectedNode) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    if (isConnectMode) {
-        drawMindmap();
-        ctx.beginPath();
-        ctx.moveTo(selectedNode.x, selectedNode.y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-    } else {
-        selectedNode.x = x;
-        selectedNode.y = y;
-        drawMindmap();
-    }
-}
-
-function onMouseUp(e) {
-    if (!isDragging || !selectedNode) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    if (isConnectMode) {
-        const targetNode = nodes.find(node => 
-            node !== selectedNode &&
-            x >= node.x - node.width / 2 &&
-            x <= node.x + node.width / 2 &&
-            y >= node.y - node.height / 2 &&
-            y <= node.y + node.height / 2
-        );
-
-        if (targetNode) {
-            createConnection(selectedNode, targetNode);
-        }
-        selectedNode = null; // 연결 모드에서는 선택 해제
-    }
-
-    isDragging = false;
-    canvas.style.cursor = 'default';
-    drawMindmap();
-}
-
-function resizeCanvas() {
-    const containerRect = canvasContainer.getBoundingClientRect();
-    canvas.width = containerRect.width;
-    canvas.height = containerRect.height;
-    drawMindmap();
 }
 
 function setupButtonListeners() {
