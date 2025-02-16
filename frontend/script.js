@@ -104,8 +104,8 @@ function drawNode(node, highlight = false) {
     // 선택된 노드에 대해 휴지통 아이콘 그리기
     if (selectedNode === node) {
         const iconSize = 20;
-        const iconX = node.x + node.width / 2 + 5;
-        const iconY = node.y - node.height / 2;
+        const iconX = node.x + node.width + 5;
+        const iconY = node.y;
         
         // 휴지통 아이콘 위치 저장 (클릭 감지용)
         node.deleteIcon = {
@@ -116,22 +116,8 @@ function drawNode(node, highlight = false) {
         };
 
         // 휴지통 아이콘 그리기
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize/2, iconY + iconSize/2, iconSize/2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // X 표시 그리기
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 6);
-        ctx.lineTo(iconX + iconSize - 6, iconY + iconSize - 6);
-        ctx.moveTo(iconX + iconSize - 6, iconY + 6);
-        ctx.lineTo(iconX + 6, iconY + iconSize - 6);
-        ctx.stroke();
-
-        
+        ctx.font = `${iconSize}px Arial`;
+        ctx.fillText('🗑️', iconX, iconY);
     } 
     
 }
@@ -152,12 +138,15 @@ function drawConnection(conn, highlight = false) {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
     }
-    else{
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.stroke();
+    else {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
     }
+    
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
     
     // 화살표 그리기
     const angle = Math.atan2(endY - startY, endX - startX);
@@ -187,28 +176,15 @@ function drawConnection(conn, highlight = false) {
         
         // 삭제 아이콘 위치 저장
         conn.deleteIcon = {
-            x: midX - iconSize/2,
-            y: midY - iconSize/2,
+            x: midX - iconSize / 2,
+            y: midY - iconSize / 2,
             width: iconSize,
             height: iconSize
         };
 
         // 삭제 아이콘 그리기
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(midX, midY, iconSize/2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // X 표시 그리기
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(midX - 4, midY - 4);
-        ctx.lineTo(midX + 4, midY + 4);
-        ctx.moveTo(midX + 4, midY - 4);
-        ctx.lineTo(midX - 4, midY + 4);
-        ctx.stroke();
-        ctx.lineWidth = 1;
+        ctx.font = `${iconSize}px Arial`;
+        ctx.fillText('🗑️', midX - iconSize / 2, midY + iconSize / 2);
     }
 }
 
