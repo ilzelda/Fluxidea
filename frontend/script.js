@@ -428,6 +428,9 @@ async function initializePages() {
                     li.addEventListener('click', () => loadSelectedPage(page.id));
                     pageList.appendChild(li);
                 });
+                
+                loadSelectedPage(pages[0].id); 
+                
                 break;
             case 204:
                 await createNewPage();
