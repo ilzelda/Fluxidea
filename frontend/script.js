@@ -1,3 +1,5 @@
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
 const ctx = canvas.getContext('2d');
@@ -15,7 +17,9 @@ let graph = {};
 let parentNodes = [];
 let isConnectMode = false;
 let isSelectingParent = false;
+let parentIndex = 0;
 let selectedNode = null;
+let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
 
@@ -24,11 +28,8 @@ const levelColors = [
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
-base_url = 'http://localhost:8080';
+// base_url = 'http://localhost:8080';
 // base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
-
-// 전역 변수 추가
-let selectedConnection = null;
 
 // 노드 그리기
 function drawNode(node) {
@@ -306,6 +307,26 @@ function organizeNodes() {
     console.log('Nodes after organizing:', nodes);  // 디버깅용
 }
 
+function organizeNodes_force(){
+    const convertedConnections = connections.map(c => ({
+        source: c.start,
+        target: c.end,
+        description: c.description
+      }));
+
+    const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(convertedConnections).id(d => d.id).distance(150))
+    .force("charge", d3.forceManyBody().strength(-300))
+    .force("center", d3.forceCenter(canvas.width / 2, canvas.height / 2))
+    .force("collide", d3.forceCollide().radius(30)); 
+    
+    simulation.on("tick", () => {
+        drawMindmap();
+      });
+    
+    drawMindmap();
+}
+
 // 임의의 그래프 생성 함수
 function generateTestGraph() {
     // 기존 노드와 연결 초기화
@@ -377,7 +398,7 @@ async function saveGraph() {
     };
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`, {
+        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -406,7 +427,7 @@ async function initializePages() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages`);
+        const response = await fetch(`/api/users/${user_id}/pages`);
         if (!response.ok) {
             throw new Error('페이지 정보를 가져오는데 실패했습니다.');
         }
@@ -451,7 +472,7 @@ async function loadSelectedPage(pageId) {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`);
+        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
         if (!response.ok) {
             throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
         }
@@ -492,11 +513,18 @@ async function loadSelectedPage(pageId) {
     }
 }
 
-async function createNewPage(pageName='새 페이지') {
+async function createNewPage() {
+    const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
+    if (pageName === null) return;
+    else if (pageName === '') {
+        alert('페이지 이름을 입력해주세요.');
+        return;
+    }
+   
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages`, {
+        const response = await fetch(`/api/users/${user_id}/pages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -534,8 +562,12 @@ async function createNewPage(pageName='새 페이지') {
 }
 
 function createNode(x, y) {
-    let text = prompt('노드 텍스트를 입력하세요:');
-    if (text === null) text = "빈 노드";
+    let text = prompt('노드 텍스트를 입력하세요:', '새 노드');
+    if (text === null) return;
+    else if(text === '') {
+        alert('노드 텍스트를 입력해주세요.');
+        return;
+    }
 
     if (x == null ) { x = Math.random() * (canvas.width - 40) + 20;}
     if (y == null) { y = Math.random() * (canvas.height - 40) + 20;}
@@ -549,6 +581,7 @@ function createNode(x, y) {
 
     calculateNodeSize(node);
     nodes.push(node);
+    generateGraphStructure();
     console.log('New node:', x, y, text); // 디버깅용
     return node;
 }
@@ -567,13 +600,19 @@ function deleteNode(node) {
 }
 
 function createConnection(start, end) {
-    let description = prompt('연결선의 설명을 입력하세요:');
-    if (description === null) description = "연결선";
+    let description = prompt('연결선의 설명을 입력하세요:', '연결선');
+    if (description === null) return;
+    else if(description === '') {
+        alert('연결선 설명을 입력해주세요.');
+        return;
+    }
+
     connections.push({
         start: start,
         end: end,
         description: description
     });
+    generateGraphStructure();
 }
 
 function deleteConnection(connection) {
@@ -692,6 +731,7 @@ function onMouseDown(e) {
             // 빈 공간 클릭
             selectedNode = null;
             selectedConnection = null;
+            parentIndex = 0;
         }
     }
     
@@ -754,15 +794,14 @@ function resizeCanvas() {
 
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
-        organizeNodes();
+        // organizeNodes();
+        organizeNodes_force();
+
         drawMindmap();
     });
 
     newPageBtn.addEventListener('click', () => {
-        const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
-        if (pageName !== null) {  // 사용자가 취소를 누르지 않았다면
-            createNewPage(pageName);
-        }
+            createNewPage();
     });
     testBtn.addEventListener('click', generateTestGraph);
     saveBtn.addEventListener('click', saveGraph);
@@ -787,42 +826,46 @@ function setupCanvasListeners() {
 function setupKeyboardListeners() {
     window.addEventListener('keydown', e => {
         if (selectedNode) {
-            // 자식 만들기
             if (e.key === 'Tab') {
-                const newnode = createNode(x = selectedNode.x + canvas.width*0.1, y=selectedNode.y);
-                createConnection(selectedNode, newnode);
-                selectedNode = newnode;
-                drawMindmap();
+                // shift + tab : 부모 선택
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    parentNodes = graph[selectedNode.id].parents;
+                    parentNodes.forEach(id => {
+                        console.log(graph[id]);
+                    })
+                    
+                    if (parentIndex < parentNodes.length && parentIndex > 0) {
+                        parentIndex = (parentIndex + 1) % parentNodes.length;
+                    }
+
+                    selectedNode = nodes.find(node => node.id === parentNodes[parentIndex]);
+                } 
+                else { 
+                    // tab : 자식 생성
+                    e.preventDefault();
+                    const newnode = createNode(x = selectedNode.x + canvas.width*0.1, y=selectedNode.y);
+                    if (newnode !== undefined) {
+                        createConnection(selectedNode, newnode);
+                        selectedNode = newnode;
+                    }
+                }
             }
 
-            // 
-            if (e.shiftKey && e.key === 'Tab') {
-                connections.forEach(conn => {
-                    if(conn.end === selectedNode) {
-                        isSelectingParent = true;
-                        drawConnection(conn, true);
-                    }
-                });
-                parentNodes = graph[selectedNode.id].parents;
-                selectedNode = parentNodes[0];
+            if (e.key === 'ArrowUp') {
+                const currentIndex = parentNodes.indexOf(selectedNode);
+                const nextIndex = (currentIndex - 1 + parentNodes.length) % parentNodes.length;
+                selectedNode = parentNodes[nextIndex];
+            } else if (e.key === 'ArrowDown') {
+                const currentIndex = parentNodes.indexOf(selectedNode);
+                const nextIndex = (currentIndex + 1) % parentNodes.length;
+                selectedNode = parentNodes[nextIndex];
+            } else if (e.key === 'Enter') {
+                isSelectingParent = false;
             }
         }
-        // if (isSelectingParent) {
-        //     if (e.key === 'ArrowUp') {
-        //         const currentIndex = parentNodes.indexOf(selectedNode);
-        //         const nextIndex = (currentIndex - 1 + parentNodes.length) % parentNodes.length;
-        //         selectedNode = parentNodes[nextIndex];
-        //         drawNode(selectedNode, true);
-        //     } else if (e.key === 'ArrowDown') {
-        //         const currentIndex = parentNodes.indexOf(selectedNode);
-        //         const nextIndex = (currentIndex + 1) % parentNodes.length;
-        //         selectedNode = parentNodes[nextIndex];
-        //         drawNode(selectedNode, true);
-        //     } else if (e.key === 'Enter') {
-        //         isSelectingParent = false;
-        //         drawNode(selectedNode, true);
-        //     }
-        // }
+
+        drawMindmap();
     });
 }
 
@@ -832,7 +875,7 @@ function initializeApp() {
     initializePages();
     setupButtonListeners();
     setupCanvasListeners();
-    // setupKeyboardListeners(); 
+    setupKeyboardListeners(); 
 }
 
 window.addEventListener('load', initializeApp);
