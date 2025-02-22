@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"mindlink.io/mindlink/pkg/apis/page"
+	"mindlink.io/mindlink/pkg/apis/user"
 	"mindlink.io/mindlink/pkg/log"
 	"mindlink.io/mindlink/pkg/repository"
 )
@@ -21,4 +22,10 @@ var PageAPI Handler = func() Handler {
 		pageLogger,
 		repository.NewPageFSRepo(pageFSRoot, pageLogger),
 	)
+}()
+
+var UserAPI Handler = func() Handler {
+	userLogger := log.Logger.WithName("UserAPI")
+
+	return user.NewHandler(userLogger)
 }()

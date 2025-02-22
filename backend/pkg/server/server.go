@@ -20,6 +20,7 @@ func setupMux(cfg *Config) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/", &staticHandler{rootPath: cfg.RootPath})
 	apis.PageAPI.RegsistRoute(mux)
+	apis.UserAPI.RegsistRoute(mux)
 	return mux
 }
 
