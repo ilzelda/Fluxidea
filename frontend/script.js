@@ -1,3 +1,5 @@
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
 const ctx = canvas.getContext('2d');
@@ -15,7 +17,9 @@ let graph = {};
 let parentNodes = [];
 let isConnectMode = false;
 let isSelectingParent = false;
+let parentIndex = 0;
 let selectedNode = null;
+let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
 
@@ -24,14 +28,11 @@ const levelColors = [
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
 
-base_url = 'http://localhost:8080';
+// base_url = 'http://localhost:8080';
 // base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
 
-// 전역 변수 추가
-let selectedConnection = null;
-
 // 노드 그리기
-function drawNode(node, highlight = false) {
+function drawNode(node) {
     const maxWidth = 150; // 최대 너비를 줄임
     const padding = 5; // 패딩을 줄임
     const lineHeight = 16; // 줄 높이를 줄임
@@ -60,12 +61,12 @@ function drawNode(node, highlight = false) {
     const nodeWidth = textWidth + padding * 2;
     const nodeHeight = lines.length * lineHeight + padding * 2;
 
-    // 배경 그리기
-    if (node.level !== undefined) {
+    if (node.level !== undefined) { // 배경 그리기
         ctx.fillStyle = levelColors[node.level % levelColors.length];
     } else {
         ctx.fillStyle = 'white';
     }
+
     if (selectedNode === node) {
         ctx.lineWidth = 3;
     }
@@ -73,9 +74,8 @@ function drawNode(node, highlight = false) {
         ctx.lineWidth = 1;
     }
     
-    if(highlight) {
-        if(isSelectingParent) ctx.strokeStyle = 'red';
-        else ctx.strokeStyle = 'black';
+    if(node === selectedNode) {
+        ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
     }
     else {
@@ -104,8 +104,8 @@ function drawNode(node, highlight = false) {
     // 선택된 노드에 대해 휴지통 아이콘 그리기
     if (selectedNode === node) {
         const iconSize = 20;
-        const iconX = node.x + node.width / 2 + 5;
-        const iconY = node.y - node.height / 2;
+        const iconX = node.x + node.width + 5;
+        const iconY = node.y;
         
         // 휴지통 아이콘 위치 저장 (클릭 감지용)
         node.deleteIcon = {
@@ -116,28 +116,14 @@ function drawNode(node, highlight = false) {
         };
 
         // 휴지통 아이콘 그리기
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(iconX + iconSize/2, iconY + iconSize/2, iconSize/2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // X 표시 그리기
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(iconX + 6, iconY + 6);
-        ctx.lineTo(iconX + iconSize - 6, iconY + iconSize - 6);
-        ctx.moveTo(iconX + iconSize - 6, iconY + 6);
-        ctx.lineTo(iconX + 6, iconY + iconSize - 6);
-        ctx.stroke();
-
-        
+        ctx.font = `${iconSize}px Arial`;
+        ctx.fillText('🗑️', iconX, iconY);
     } 
     
 }
 
 // 연결선 그리기
-function drawConnection(conn, highlight = false) {
+function drawConnection(conn) {
     const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
     const startY = conn.start.y;
     const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
@@ -148,16 +134,19 @@ function drawConnection(conn, highlight = false) {
     const midY = (startY + endY) / 2;
 
     // 연결선 그리기
-    if (highlight) {
+    if (conn === selectedConnection) {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
     }
-    else{
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.stroke();
+    else {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
     }
+    
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
     
     // 화살표 그리기
     const angle = Math.atan2(endY - startY, endX - startX);
@@ -187,28 +176,15 @@ function drawConnection(conn, highlight = false) {
         
         // 삭제 아이콘 위치 저장
         conn.deleteIcon = {
-            x: midX - iconSize/2,
-            y: midY - iconSize/2,
+            x: midX - iconSize / 2,
+            y: midY - iconSize / 2,
             width: iconSize,
             height: iconSize
         };
 
         // 삭제 아이콘 그리기
-        ctx.fillStyle = '#ff4444';
-        ctx.beginPath();
-        ctx.arc(midX, midY, iconSize/2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // X 표시 그리기
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(midX - 4, midY - 4);
-        ctx.lineTo(midX + 4, midY + 4);
-        ctx.moveTo(midX + 4, midY - 4);
-        ctx.lineTo(midX - 4, midY + 4);
-        ctx.stroke();
-        ctx.lineWidth = 1;
+        ctx.font = `${iconSize}px Arial`;
+        ctx.fillText('🗑️', midX - iconSize / 2, midY + iconSize / 2);
     }
 }
 
@@ -331,6 +307,26 @@ function organizeNodes() {
     console.log('Nodes after organizing:', nodes);  // 디버깅용
 }
 
+function organizeNodes_force(){
+    const convertedConnections = connections.map(c => ({
+        source: c.start,
+        target: c.end,
+        description: c.description
+      }));
+
+    const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(convertedConnections).id(d => d.id).distance(150))
+    .force("charge", d3.forceManyBody().strength(-300))
+    .force("center", d3.forceCenter(canvas.width / 2, canvas.height / 2))
+    .force("collide", d3.forceCollide().radius(30)); 
+    
+    simulation.on("tick", () => {
+        drawMindmap();
+      });
+    
+    drawMindmap();
+}
+
 // 임의의 그래프 생성 함수
 function generateTestGraph() {
     // 기존 노드와 연결 초기화
@@ -402,7 +398,7 @@ async function saveGraph() {
     };
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`, {
+        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -431,7 +427,7 @@ async function initializePages() {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages`);
+        const response = await fetch(`/api/users/${user_id}/pages`);
         if (!response.ok) {
             throw new Error('페이지 정보를 가져오는데 실패했습니다.');
         }
@@ -453,6 +449,9 @@ async function initializePages() {
                     li.addEventListener('click', () => loadSelectedPage(page.id));
                     pageList.appendChild(li);
                 });
+                
+                loadSelectedPage(pages[0].id); 
+                
                 break;
             case 204:
                 await createNewPage();
@@ -473,7 +472,7 @@ async function loadSelectedPage(pageId) {
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages/${pageId}`);
+        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
         if (!response.ok) {
             throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
         }
@@ -514,11 +513,18 @@ async function loadSelectedPage(pageId) {
     }
 }
 
-async function createNewPage(pageName='새 페이지') {
+async function createNewPage() {
+    const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
+    if (pageName === null) return;
+    else if (pageName === '') {
+        alert('페이지 이름을 입력해주세요.');
+        return;
+    }
+   
     const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
-        const response = await fetch(`${base_url}/api/users/${user_id}/pages`, {
+        const response = await fetch(`/api/users/${user_id}/pages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -556,8 +562,12 @@ async function createNewPage(pageName='새 페이지') {
 }
 
 function createNode(x, y) {
-    let text = prompt('노드 텍스트를 입력하세요:');
-    if (text === null) text = "빈 노드";
+    let text = prompt('노드 텍스트를 입력하세요:', '새 노드');
+    if (text === null) return;
+    else if(text === '') {
+        alert('노드 텍스트를 입력해주세요.');
+        return;
+    }
 
     if (x == null ) { x = Math.random() * (canvas.width - 40) + 20;}
     if (y == null) { y = Math.random() * (canvas.height - 40) + 20;}
@@ -571,6 +581,7 @@ function createNode(x, y) {
 
     calculateNodeSize(node);
     nodes.push(node);
+    generateGraphStructure();
     console.log('New node:', x, y, text); // 디버깅용
     return node;
 }
@@ -589,13 +600,19 @@ function deleteNode(node) {
 }
 
 function createConnection(start, end) {
-    let description = prompt('연결선의 설명을 입력하세요:');
-    if (description === null) description = "연결선";
+    let description = prompt('연결선의 설명을 입력하세요:', '연결선');
+    if (description === null) return;
+    else if(description === '') {
+        alert('연결선 설명을 입력해주세요.');
+        return;
+    }
+
     connections.push({
         start: start,
         end: end,
         description: description
     });
+    generateGraphStructure();
 }
 
 function deleteConnection(connection) {
@@ -604,14 +621,18 @@ function deleteConnection(connection) {
     drawMindmap();
 }
 
-// 연결선 클릭 감지 함수
+/** 
+ * 연결선 클릭 감지 함수
+ * 
+ * 선과 점 사이의 거리 공식이용
+ */ 
 function isClickOnConnection(x, y, conn) {
     const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
     const startY = conn.start.y;
     const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
     const endY = conn.end.y;
 
-    // 선과 점 사이의 거리 계산
+    
     const A = x - startX;
     const B = y - startY;
     const C = endX - startX;
@@ -679,11 +700,13 @@ function onMouseDown(e) {
     );
 
     if (clickedNode) {
-        if (isConnectMode) {
+        // 노드 클릭 
+        if (isConnectMode) { // 연결모드 일때
             selectedNode = clickedNode;
             isDragging = true;
             canvas.style.cursor = 'crosshair';
-        } else {
+        } 
+        else { // 일반모드 일때
             if (selectedNode === clickedNode) {
                 selectedNode = null;
             } else {
@@ -693,8 +716,9 @@ function onMouseDown(e) {
             }
         }
         selectedConnection = null; // 노드 선택시 연결선 선택 해제
-    } else {
-        // 연결선 클릭 확인
+    } 
+    else {
+        // 연결선 클릭
         const clickedConnection = connections.find(conn => isClickOnConnection(x, y, conn));
         if (clickedConnection) {
             if (selectedConnection === clickedConnection) {
@@ -707,6 +731,7 @@ function onMouseDown(e) {
             // 빈 공간 클릭
             selectedNode = null;
             selectedConnection = null;
+            parentIndex = 0;
         }
     }
     
@@ -769,15 +794,14 @@ function resizeCanvas() {
 
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
-        organizeNodes();
+        // organizeNodes();
+        organizeNodes_force();
+
         drawMindmap();
     });
 
     newPageBtn.addEventListener('click', () => {
-        const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
-        if (pageName !== null) {  // 사용자가 취소를 누르지 않았다면
-            createNewPage(pageName);
-        }
+            createNewPage();
     });
     testBtn.addEventListener('click', generateTestGraph);
     saveBtn.addEventListener('click', saveGraph);
@@ -789,7 +813,7 @@ function setupButtonListeners() {
 
     connectModeBtn.addEventListener('click', () => {
         isConnectMode = !isConnectMode;
-        connectModeBtn.textContent = isConnectMode ? '일반 모드' : '연결 모드';
+        connectModeBtn.textContent = isConnectMode ? '일반 모드로 전환' : '연결 모드로 전환';
     });
 }
 
@@ -802,44 +826,49 @@ function setupCanvasListeners() {
 function setupKeyboardListeners() {
     window.addEventListener('keydown', e => {
         if (selectedNode) {
-            // 자식 만들기
             if (e.key === 'Tab') {
-                const newnode = createNode(x = selectedNode.x + canvas.width*0.1, y=selectedNode.y);
-                createConnection(selectedNode, newnode);
-                selectedNode = newnode;
-                drawMindmap();
+                // shift + tab : 부모 선택
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    parentNodes = graph[selectedNode.id].parents;
+                    parentNodes.forEach(id => {
+                        console.log(graph[id]);
+                    })
+                    
+                    if (parentIndex < parentNodes.length && parentIndex > 0) {
+                        parentIndex = (parentIndex + 1) % parentNodes.length;
+                    }
+
+                    selectedNode = nodes.find(node => node.id === parentNodes[parentIndex]);
+                } 
+                else { 
+                    // tab : 자식 생성
+                    e.preventDefault();
+                    const newnode = createNode(x = selectedNode.x + canvas.width*0.1, y=selectedNode.y);
+                    if (newnode !== undefined) {
+                        createConnection(selectedNode, newnode);
+                        selectedNode = newnode;
+                    }
+                }
             }
 
-            // 
-            if (e.shiftKey && e.key === 'Tab') {
-                connections.forEach(conn => {
-                    if(conn.end === selectedNode) {
-                        isSelectingParent = true;
-                        drawConnection(conn, highlight = true);
-                    }
-                });
-                parentNodes = graph[selectedNode.id].parents;
-                selectedNode = parentNodes[0];
-            }
-        }
-        if (isSelectingParent) {
             if (e.key === 'ArrowUp') {
                 const currentIndex = parentNodes.indexOf(selectedNode);
                 const nextIndex = (currentIndex - 1 + parentNodes.length) % parentNodes.length;
                 selectedNode = parentNodes[nextIndex];
-                drawNode(selectedNode, highlight = true);
             } else if (e.key === 'ArrowDown') {
                 const currentIndex = parentNodes.indexOf(selectedNode);
                 const nextIndex = (currentIndex + 1) % parentNodes.length;
                 selectedNode = parentNodes[nextIndex];
-                drawNode(selectedNode, highlight = true);
             } else if (e.key === 'Enter') {
                 isSelectingParent = false;
-                drawNode(selectedNode, highlight = true);
             }
         }
+
+        drawMindmap();
     });
 }
+
 function initializeApp() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
