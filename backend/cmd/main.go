@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"mindlink.io/mindlink/pkg/log"
 	"mindlink.io/mindlink/pkg/server"
 )
@@ -11,6 +12,11 @@ import (
 var logger = log.Logger
 
 func main() {
+	if err := godotenv.Load("./config/.env"); err != nil {
+		logger.Error(err, "not found .env file")
+		os.Exit(1)
+	}
+
 	configFilePath := os.Getenv("CONFIG_FILE_PATH")
 	if configFilePath == "" {
 		err := fmt.Errorf("CONFIG_FILE_PATH environment variable is not set")

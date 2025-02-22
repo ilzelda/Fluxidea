@@ -11,7 +11,7 @@ run:
 
 CONTAINER_RUNTIME := docker
 GIT_TAG := $(shell git describe --tags --abbrev=0 2> /dev/null || echo untagged)
-VERSION := $(shell if [[ "$(GIT_TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+.*$$ ]]; then echo $(GIT_TAG) | sed -e 's/v\(.*\)/\1/g'; else echo 'untagged'; fi)
+VERSION ?= $(shell if [[ "$(GIT_TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+.*$$ ]]; then echo $(GIT_TAG) | sed -e 's/v\(.*\)/\1/g'; else echo 'untagged'; fi)
 REGISTRY_HOST ?= docker.io
 IMAGE := ${REGISTRY_HOST}/leebee725/mindlink:${VERSION}
 .PHONY: image-build
