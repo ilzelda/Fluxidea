@@ -5,7 +5,7 @@ export function handleCredentialResponse(response) {
     // localStorage.setItem("google_jwt", response.credential);
 
     // ✅ 서버로 JWT 전송 (사용자 검증)
-    fetch("https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io/login", {
+    fetch("api/users", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
