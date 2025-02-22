@@ -5,7 +5,7 @@ export function handleCredentialResponse(response) {
     // localStorage.setItem("google_jwt", response.credential);
 
     // ✅ 서버로 JWT 전송 (사용자 검증)
-    fetch("api/users", {
+    fetch("/api/users", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -15,6 +15,7 @@ export function handleCredentialResponse(response) {
     .then(res => res.json())
     .then(data => {
         console.log("서버 응답:", data);
+        localStorage.setItem("mindlink_token", data);
     })
     .catch(error => console.error("에러 발생:", error));
 }

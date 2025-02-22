@@ -22,6 +22,7 @@ let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
+let user_id =""
 
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -373,7 +374,6 @@ function generateTestGraph() {
 }
 
 async function saveGraph() {
-    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
     const activePage = document.querySelector('#pageList .page-item.active');
     
     if (!activePage) {
@@ -424,8 +424,6 @@ async function saveGraph() {
 
 // 페이지 정보를 가져오고 목록을 생성하는 함수
 async function initializePages() {
-    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-
     try {
         const response = await fetch(`/api/users/${user_id}/pages`);
         if (!response.ok) {
@@ -468,8 +466,6 @@ async function initializePages() {
 async function loadSelectedPage(pageId) {
     nodes = [];
     connections = [];
-
-    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
 
     try {
         const response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
@@ -521,8 +517,6 @@ async function createNewPage() {
         return;
     }
    
-    const user_id = 'current_user_id'; // 실제 사용자 ID로 대체해야 합니다
-
     try {
         const response = await fetch(`/api/users/${user_id}/pages`, {
             method: 'POST',
@@ -869,7 +863,20 @@ function setupKeyboardListeners() {
     });
 }
 
+function setUserInfo(){
+    mindlink_token = localStorage.getItem('mindlink_token');
+    if (mindlink_token === null) {
+        alert('로그인이 필요합니다.');
+        window.location.href = '/';
+    }
+    else{
+        mindlink_token = JSON.parse(mindlink_token);
+        user_id = mindlink_token.user_id;
+    }
+}
+
 function initializeApp() {
+    setUserInfo();
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     initializePages();
