@@ -3,13 +3,17 @@ package apis
 import (
 	"net/http"
 
+	"mindlink.io/mindlink/pkg/apis/auth"
 	"mindlink.io/mindlink/pkg/apis/page"
 	"mindlink.io/mindlink/pkg/apis/user"
 	"mindlink.io/mindlink/pkg/log"
 	"mindlink.io/mindlink/pkg/repository"
 )
 
-const pageFSRoot = "data"
+const (
+	pageFSRoot = "data/page"
+	userFSRoot = "data/user"
+)
 
 type Handler interface {
 	RegsistRoute(*http.ServeMux)
@@ -28,4 +32,12 @@ var UserAPI Handler = func() Handler {
 	userLogger := log.Logger.WithName("UserAPI")
 
 	return user.NewHandler(userLogger)
+}()
+
+var AuthAPI Handler = func() Handler {
+	authLogger := log.Logger.WithName("AuthAPI")
+
+	return auth.NewHandler(
+		authLogger,
+	)
 }()

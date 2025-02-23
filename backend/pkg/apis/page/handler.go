@@ -32,8 +32,6 @@ func (ph *handler) RegsistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
 }
 
-const dataDir string = "data"
-
 func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
