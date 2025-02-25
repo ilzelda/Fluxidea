@@ -22,7 +22,7 @@ let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
-let user_id =""
+let user_id ="";
 
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -375,13 +375,11 @@ function generateTestGraph() {
 
 async function saveGraph() {
     const activePage = document.querySelector('#pageList .page-item.active');
-    
+
     if (!activePage) {
         console.log('선택된 페이지가 없습니다.');
         return;
     }
-
-    const pageId = activePage.dataset.pageId;
     
     const data = {
         nodes: nodes.map(node => ({
@@ -397,37 +395,64 @@ async function saveGraph() {
         }))
     };
 
-    try {
-        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
+    const pageId = activePage.dataset.pageId;
 
-        if (!response.ok) {
-            throw new Error('네트워크 응답이 올바르지 않습니다');
+    if (pageId === 'temp') {
+        let tempPage = localStorage.getItem('mindlink_temp_page');
+        let tempData = JSON.parse(tempPage);
+        tempData[0].data = data;
+        localStorage.setItem('mindlink_temp_page', JSON.stringify(tempData));
+    }
+    else{
+        try {
+            const response = await fetch(`/api/users/${user_id}/pages/${pageId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+    
+            if (!response.ok) {
+                throw new Error('네트워크 응답이 올바르지 않습니다');
+            }
+    
+            const result = await response.json();
+            
+            if (result.success_ok) {
+                console.log('그래프가 성공적으로 저장되었습니다');
+            } else {
+                console.log('그래프 저장에 실패했습니다');
+            }
+        } catch (error) {
+            console.error('그래프 저장 중 오류 발생:', error);
         }
-
-        const result = await response.json();
-        
-        if (result.success_ok) {
-            console.log('그래프가 성공적으로 저장되었습니다');
-        } else {
-            console.log('그래프 저장에 실패했습니다');
-        }
-    } catch (error) {
-        console.error('그래프 저장 중 오류 발생:', error);
     }
 }
 
 // 페이지 정보를 가져오고 목록을 생성하는 함수
 async function initializePages() {
     try {
-        const response = await fetch(`/api/users/${user_id}/pages`);
-        if (!response.ok) {
-            throw new Error('페이지 정보를 가져오는데 실패했습니다.');
+        let response;
+
+        if(user_id ){
+            response = await fetch(`/api/users/${user_id}/pages`);
+            if (!response.ok) {
+                throw new Error(`페이지 초기화 실패 (/api/users/${user_id}/pages)`);
+            }
+        }
+        else{
+            let data = localStorage.getItem('mindlink_temp_page');
+            if (data === null) {
+                response = { status: 204 };
+            }
+            else{
+                data = JSON.parse(data)
+                console.log(typeof(data));
+                console.log(data);
+
+                response = { status: 200, json: () => Promise.resolve(data) };
+            }
         }
         
         const pageList = document.getElementById('pageList');
@@ -467,92 +492,116 @@ async function loadSelectedPage(pageId) {
     nodes = [];
     connections = [];
 
-    try {
-        const response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
-        if (!response.ok) {
-            throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
-        }
-        
-        const pageItems = document.querySelectorAll('#pageList .page-item');
-        pageItems.forEach(item => {
-            if (item.dataset.pageId === pageId) {
-                item.classList.add('active');
-                console.log('active 클래스 추가 :', pageId);
-            } else {
-                item.classList.remove('active');
-            }
-        });
+    let response;
+    let data;
 
-        // 페이지 데이터로 노드와 연결 업데이트
-        const data = await response.json();
-
-        if (data.nodes) {
-            nodes = data.nodes;
-        }
-        if(data.connections) {
-            connections = data.connections.map(conn => ({
-                start: nodes.find(node => node.id === conn.start),
-                end: nodes.find(node => node.id === conn.end),
-                description: conn.description
-            }));
-        }
-
-        if(!(data.nodes && data.connections)) {
-            console.log('[loadSelectedPage] 서버로부터 받은 nodes와 connections가 비어있습니다.');
-        }
-        else{
-            generateGraphStructure();
-        }
-        drawMindmap();
-    } catch (error) {
-        console.error('페이지 로드 중 오류 발생:', error);
+    if(pageId === 'temp'){
+        let tempPage = localStorage.getItem('mindlink_temp_page');
+        data = JSON.parse(tempPage)[0].data;
     }
+    else{
+        try {
+            response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
+            if (!response.ok) {
+                throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
+            }
+            data = await response.json();
+    
+        } catch (error) {
+            console.error('페이지 로드 중 오류 발생:', error);
+        }
+    }
+
+    const pageItems = document.querySelectorAll('#pageList .page-item');
+    pageItems.forEach(item => {
+        if (item.dataset.pageId === pageId) {
+            item.classList.add('active');
+            console.log('active 클래스 추가 :', pageId);
+        } else {
+            item.classList.remove('active');
+        }
+    });
+
+    // 페이지 데이터로 노드와 연결 업데이트
+    if (data.nodes) {
+        nodes = data.nodes;
+    }
+    if(data.connections) {
+        connections = data.connections.map(conn => ({
+            start: nodes.find(node => node.id === conn.start),
+            end: nodes.find(node => node.id === conn.end),
+            description: conn.description
+        }));
+    }
+
+    if(!(data.nodes && data.connections)) {
+        console.log('[loadSelectedPage] nodes와 connections가 비어있습니다.');
+    }
+    else{
+        generateGraphStructure();
+    }
+    drawMindmap();
+    
 }
 
 async function createNewPage() {
+    if(!user_id){
+        let tempPage = localStorage.getItem('mindlink_temp_page');
+        if (tempPage !== null) {
+            alert('로그인이 필요합니다.');
+            return;
+        }
+    }
+    
     const pageName = prompt('새 페이지의 이름을 입력하세요:', '새 페이지');
     if (pageName === null) return;
     else if (pageName === '') {
         alert('페이지 이름을 입력해주세요.');
         return;
     }
-   
-    try {
-        const response = await fetch(`/api/users/${user_id}/pages`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ name: pageName })
-        });
-
-        if (!response.ok) {
-            throw new Error('새 페이지 생성에 실패했습니다.');
-        }
-
-        const newPage = await response.json(); // {id: <string>, name: <string>}
-        console.log('새 페이지 생성:', newPage);
-
-        // 페이지 목록에 새 페이지 추가
-        const pageList = document.getElementById('pageList');
-        const li = document.createElement('li');
-        li.className = 'page-item';
-        li.dataset.pageId = newPage.id;
-        li.innerHTML = `
-            <span class="page-icon">📄</span>
-            <span class="page-name">${pageName}</span>
-        `;
-        li.addEventListener('click', () => loadSelectedPage(newPage.id));
-        pageList.appendChild(li);
-
-        // 새로 생성된 페이지 로드
-        loadSelectedPage(newPage.id);
-
-    } catch (error) {
-        console.error('새 페이지 생성 중 오류 발생:', error);
-        alert('새 페이지 생성에 실패했습니다. 다시 시도해주세요.');
-    }
     
+    let newPage;
+
+    if(user_id){
+        try {
+            const response = await fetch(`/api/users/${user_id}/pages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: pageName })
+            });
+    
+            if (!response.ok) {
+                throw new Error('새 페이지 생성에 실패했습니다.');
+            }
+    
+            newPage = await response.json(); // {id: <string>, name: <string>}
+            console.log('새 페이지 생성:', newPage);
+        } catch (error) {
+            console.error('새 페이지 생성 중 오류 발생:', error);
+            alert('새 페이지 생성에 실패했습니다. 다시 시도해주세요.');
+        }
+    }
+    else{
+        newPage = [{id:'temp', name : pageName, data: {nodes: [], connections: []}}];
+        localStorage.setItem('mindlink_temp_page', JSON.stringify(newPage));
+    }
+
+    // 페이지 목록에 새 페이지 추가
+    const pageList = document.getElementById('pageList');
+    const li = document.createElement('li');
+    li.className = 'page-item';
+    li.dataset.pageId = newPage.id;
+    li.innerHTML = `
+        <span class="page-icon">📄</span>
+        <span class="page-name">${pageName}</span>
+    `;
+    li.addEventListener('click', () => loadSelectedPage(newPage.id));
+    pageList.appendChild(li);
+
+    // 새로 생성된 페이지 로드
+    loadSelectedPage(newPage.id);
 }
 
 function createNode(x, y) {
@@ -864,13 +913,11 @@ function setupKeyboardListeners() {
 }
 
 function setUserInfo(){
-    mindlink_token = localStorage.getItem('mindlink_token');
+    let mindlink_token = localStorage.getItem('mindlink_token');
     if (mindlink_token === null) {
         alert('로그인이 필요합니다.');
-        window.location.href = '/';
     }
     else{
-        mindlink_token = JSON.parse(mindlink_token);
         user_id = mindlink_token.user_id;
     }
 }
