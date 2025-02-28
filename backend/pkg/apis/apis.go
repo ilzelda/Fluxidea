@@ -16,7 +16,7 @@ const (
 )
 
 type Handler interface {
-	RegsistRoute(*http.ServeMux)
+	RegistRoute(*http.ServeMux)
 }
 
 var PageAPI Handler = func() Handler {
@@ -25,6 +25,7 @@ var PageAPI Handler = func() Handler {
 	return page.NewHandler(
 		pageLogger,
 		repository.NewPageFSRepo(pageFSRoot, pageLogger),
+		auth.HeaderHandler,
 	)
 }()
 

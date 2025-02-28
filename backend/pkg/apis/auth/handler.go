@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -28,7 +29,7 @@ func NewHandler(log logr.Logger) *handler {
 	}
 }
 
-func (h *handler) RegsistRoute(mux *http.ServeMux) {
+func (h *handler) RegistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/google/login", h.googleLoginHandler)
 	mux.HandleFunc("GET /api/auth/google/callback", h.googleLoginCallbackHandler)
 }
@@ -90,8 +91,9 @@ func (uh *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Req
 		http.Error(w, "failed to get user info", http.StatusInternalServerError)
 		return
 	}
+	uh.log.Info("user info", "userinfo", userInfo)
 
-	accessToken, err := generateJWT(userInfo.Email)
+	accessToken, err := generateJWT(userInfo)
 	if err != nil {
 		uh.log.Error(err, "failed to generate jwt")
 		http.Error(w, "failed to generate jwt", http.StatusInternalServerError)
@@ -107,6 +109,47 @@ func (uh *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Req
 	http.SetCookie(w, cookie)
 
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+type ClaimsKey struct{}
+
+func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			// TODO: 401로 보낼지 200에 빈값을 보낼지 결정, 일단 401로 보내기
+			http.Error(w, "authorization required", http.StatusUnauthorized)
+			return
+		}
+
+		scheme, param, found := strings.Cut(auth, " ")
+		if !found {
+			http.Error(w, "invalid authorization header", http.StatusBadRequest)
+			return
+		}
+
+		switch scheme {
+		case "Bearer":
+			claim := &models.Claims{}
+			token, err := jwt.ParseWithClaims(param, claim, func(t *jwt.Token) (interface{}, error) {
+				return privKey.Public(), nil
+			})
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to parse token: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+
+			if token.Valid {
+				ctx := context.WithValue(r.Context(), ClaimsKey{}, claim)
+				r = r.WithContext(ctx)
+			} else {
+				http.Error(w, "invalid token", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		next(w, r)
+	}
 }
 
 func checkEnv() error {
@@ -141,9 +184,11 @@ func getUserInfo(token *oauth2.Token) (*models.User, error) {
 }
 
 // TODO: Claim 구조체에 필요한 사용자 정보 추가
-func generateJWT(email string) (string, error) {
+func generateJWT(user *models.User) (string, error) {
 	claim := &models.Claims{
-		Email: email,
+		ID:    user.ID,
+		Email: user.Email,
+		Name:  user.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 		},

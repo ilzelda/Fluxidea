@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
+	"mindlink.io/mindlink/pkg/apis/internal/api"
 	"mindlink.io/mindlink/pkg/models"
 	"mindlink.io/mindlink/pkg/repository"
 )
@@ -15,21 +17,36 @@ import (
 type handler struct {
 	log  logr.Logger
 	repo PageRepository
+	mids []api.Middleware
 }
 
-func NewHandler(log logr.Logger, repo PageRepository) *handler {
+func NewHandler(log logr.Logger, repo PageRepository, mids ...api.Middleware) *handler {
 	return &handler{
 		log:  log,
 		repo: repo,
+		mids: mids,
 	}
 }
 
-func (ph *handler) RegsistRoute(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/users/{user_id}/pages", ph.createUserPage)
-	mux.HandleFunc("GET /api/users/{user_id}/pages", ph.listUserPages)
-	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
-	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
-	mux.HandleFunc("DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
+func (ph *handler) RegistRoute(mux *http.ServeMux) {
+	ph.registRoute(mux, "POST /api/users/{user_id}/pages", ph.createUserPage)
+	ph.registRoute(mux, "GET /api/users/{user_id}/pages", ph.listUserPages)
+	ph.registRoute(mux, "GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
+	ph.registRoute(mux, "PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
+	ph.registRoute(mux, "DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
+}
+
+func (ph *handler) registRoute(mux *http.ServeMux, pattern string, fn http.HandlerFunc) {
+	mux.HandleFunc(pattern, ph.chain(fn))
+}
+
+func (ph *handler) chain(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, mid := range slices.Backward(ph.mids) {
+			next = mid(next)
+		}
+		next(w, r)
+	}
 }
 
 func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {

@@ -17,7 +17,7 @@ func NewHandler(log logr.Logger) *handler {
 	}
 }
 
-func (uh *handler) RegsistRoute(mux *http.ServeMux) {
+func (uh *handler) RegistRoute(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/users", uh.createUser)
 }
 
