@@ -33,13 +33,15 @@ type handler struct {
 	log logr.Logger
 }
 
-func NewHandler(log logr.Logger, envType string) (*handler, error) {
+func NewHandler(log logr.Logger) (*handler, error) {
 	var err error
-	switch envType {
+	switch os.Getenv("APP_ENV") {
 	case "DEV", "dev", "development":
 		privKey, err = loadTestPrivateKey()
 	case "PROD", "prod", "production":
 		privKey, err = rsa.GenerateKey(rand.Reader, 2048)
+	default:
+		return nil, errors.New("unknown environment")
 	}
 	if err != nil {
 		return nil, err

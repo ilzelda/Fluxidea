@@ -12,6 +12,17 @@ import (
 
 var logger = log.Logger
 
+func SayHello() {
+	logger.Info("    .-..-. _          .-..-.    _       .-.       ")
+	logger.Info("    : `' ::_;         : :: :   :_;      : :.-.    ")
+	logger.Info("    : .. :.-.,-.,-. .-' :: :   .-.,-.,-.: `'.'    ")
+	logger.Info("    : :; :: :: ,. :' .; :: :__ : :: ,. :: . `.    ")
+	logger.Info("    :_;:_;:_;:_;:_;`.__.':___.':_;:_;:_;:_;:_;    ")
+	logger.Info("                                                  ")
+	logger.Info("                                                  ")
+	logger.Info("", "APP_ENV", os.Getenv("APP_ENV"))
+}
+
 func init() {
 	if err := godotenv.Load("./config/.env"); err != nil {
 		logger.Error(err, "not found .env file")
@@ -26,33 +37,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := log.SetLogger(LogConfig(cfg)); err != nil {
+	if err := log.SetLogger(cfg.Log); err != nil {
 		logger.Error(err, "failed to set logger")
 		os.Exit(1)
 	}
+	SayHello()
 
-	mux, err := apis.SetupAPIs(cfg.Type)
+	mux, err := apis.SetupAPIs()
 	if err != nil {
 		logger.Error(err, "Failed to setup mux")
 		os.Exit(1)
 	}
 
-	srv := server.New(ServerConfig(cfg)).WithLogger(logger).WithMultiplexer(mux)
+	srv := server.New(cfg.Server).WithLogger(logger).WithMultiplexer(mux)
 	if err := srv.Run(); err != nil {
 		logger.Error(err, "Failed to start server")
 		os.Exit(1)
 	}
-}
-
-func ServerConfig(cfg *config.AppConfig) *server.Config {
-	return &server.Config{
-		Type:     cfg.Type,
-		Port:     cfg.Server.Port,
-		RootPath: cfg.Server.RootPath,
-	}
-}
-
-// TODO: 로그 설정 확장시 사용할 구성 미리 생성, 나중에 지워질 수 있음
-func LogConfig(cfg *config.AppConfig) *log.Config {
-	return &log.Config{}
 }

@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"mindlink.io/mindlink/pkg/log"
+	"mindlink.io/mindlink/pkg/server"
 )
 
 func LoadConfig() (*AppConfig, error) {
@@ -27,10 +30,9 @@ func LoadConfig() (*AppConfig, error) {
 }
 
 type AppConfig struct {
-	Type   string        `json:"type"`
-	DB     *DBConfig     `json:"db"`
-	Log    *LogConfig    `json:"log"`
-	Server *ServerConfig `json:"server"`
+	DB     *DBConfig      `json:"db"`
+	Log    *log.Config    `json:"log"`
+	Server *server.Config `json:"server"`
 }
 
 // TODO: DB 확장시 사용할 구성 미리 생성, 나중에 지워질 수 있음
@@ -38,8 +40,3 @@ type DBConfig struct{}
 
 // TODO: 로그 설정 확장시 사용할 구성 미리 생성, 나중에 지워질 수 있음
 type LogConfig struct{}
-
-type ServerConfig struct {
-	Port     string `json:"port"`
-	RootPath string `json:"root_path"`
-}

@@ -7,9 +7,8 @@ import (
 )
 
 type Config struct {
-	Type     string
-	Port     string
-	RootPath string
+	Port     string `json:"port"`
+	RootPath string `json:"root_path"`
 }
 
 type Server struct {
@@ -54,6 +53,6 @@ func (s *Server) Run() (err error) {
 		Handler: s.mux,
 	}
 
-	s.logger.Info("Starting server", "type", s.cfg.Type, "port", s.cfg.Port, "rootPath", s.cfg.RootPath)
+	s.logger.Info("Starting server", "port", s.cfg.Port, "rootPath", s.cfg.RootPath)
 	return srv.ListenAndServe()
 }

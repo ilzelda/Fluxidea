@@ -15,7 +15,7 @@ const (
 	userFSRoot = "data/user"
 )
 
-func SetupAPIs(envType string) (*http.ServeMux, error) {
+func SetupAPIs() (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	pageLogger := log.Logger.WithName("PageAPI")
@@ -31,7 +31,6 @@ func SetupAPIs(envType string) (*http.ServeMux, error) {
 
 	authAPI, err := auth.NewHandler(
 		log.Logger.WithName("AuthAPI"),
-		envType,
 	)
 	if err != nil {
 		return nil, err
