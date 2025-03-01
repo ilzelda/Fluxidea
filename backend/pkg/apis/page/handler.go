@@ -9,6 +9,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
+	"mindlink.io/mindlink/pkg/apis/auth"
 	"mindlink.io/mindlink/pkg/apis/internal/api"
 	"mindlink.io/mindlink/pkg/models"
 	"mindlink.io/mindlink/pkg/repository"
@@ -29,11 +30,11 @@ func NewHandler(log logr.Logger, repo PageRepository, mids ...api.Middleware) *h
 }
 
 func (ph *handler) RegistRoute(mux *http.ServeMux) {
-	ph.registRoute(mux, "POST /api/users/{user_id}/pages", ph.createUserPage)
-	ph.registRoute(mux, "GET /api/users/{user_id}/pages", ph.listUserPages)
-	ph.registRoute(mux, "GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
-	ph.registRoute(mux, "PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
-	ph.registRoute(mux, "DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
+	ph.registRoute(mux, "POST /api/pages", ph.createUserPage)
+	ph.registRoute(mux, "GET /api/pages", ph.listUserPages)
+	ph.registRoute(mux, "GET /api/pages/{page_id}", ph.loadUserPage)
+	ph.registRoute(mux, "PUT /api/pages/{page_id}", ph.updateUserPage)
+	ph.registRoute(mux, "DELETE /api/pages/{page_id}", ph.deleteUserPage)
 }
 
 func (ph *handler) registRoute(mux *http.ServeMux, pattern string, fn http.HandlerFunc) {
@@ -50,7 +51,13 @@ func (ph *handler) chain(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*models.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 
 	var params models.CreatePageParams
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -72,7 +79,13 @@ func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*models.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 
 	pages, err := ph.repo.ListUserPages(models.UserID(userID))
 	if err != nil {
@@ -102,7 +115,13 @@ func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*models.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Load user page", "User", userID, "PageID", pageID)
 
@@ -129,7 +148,14 @@ func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*models.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
+
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Update user page", "User", userID, "PageID", pageID)
 
@@ -166,7 +192,13 @@ func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) deleteUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*models.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Delete user page", "User", userID, "PageID", pageID)
 
