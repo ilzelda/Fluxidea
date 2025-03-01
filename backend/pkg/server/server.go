@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/go-logr/logr"
-	"mindlink.io/mindlink/pkg/apis"
 )
 
 type Config struct {
@@ -17,6 +16,7 @@ type Server struct {
 	cfg    *Config
 	addr   string
 	logger logr.Logger
+	mux    *http.ServeMux
 }
 
 func New(cfg *Config) *Server {
@@ -28,17 +28,30 @@ func (s *Server) WithLogger(logger logr.Logger) *Server {
 	return s
 }
 
+func (s *Server) WithMultiplexer(mux *http.ServeMux) *Server {
+	s.mux = mux
+	return s
+}
+
 // Run starts the server
-func (s *Server) Run() error {
-	mux := http.NewServeMux()
-	mux.Handle("/", &staticHandler{rootPath: s.cfg.RootPath, logger: s.logger})
-	apis.PageAPI.RegistRoute(mux)
-	apis.UserAPI.RegistRoute(mux)
-	apis.AuthAPI.RegistRoute(mux)
+func (s *Server) Run() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	if s.mux == nil {
+		s.mux = http.NewServeMux()
+	}
+	s.mux.Handle("/", &staticHandler{rootPath: s.cfg.RootPath, logger: s.logger})
+	if err != nil {
+		return
+	}
 
 	srv := &http.Server{
 		Addr:    s.addr,
-		Handler: mux,
+		Handler: s.mux,
 	}
 
 	s.logger.Info("Starting server", "type", s.cfg.Type, "port", s.cfg.Port, "rootPath", s.cfg.RootPath)

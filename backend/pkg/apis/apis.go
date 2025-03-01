@@ -19,26 +19,28 @@ type Handler interface {
 	RegistRoute(*http.ServeMux)
 }
 
-var PageAPI Handler = func() Handler {
-	pageLogger := log.Logger.WithName("PageAPI")
+func SetupAPI(envType string) (*http.ServeMux, error) {
+	mux := http.NewServeMux()
 
-	return page.NewHandler(
+	pageLogger := log.Logger.WithName("PageAPI")
+	pageAPI := page.NewHandler(
 		pageLogger,
 		repository.NewPageFSRepo(pageFSRoot, pageLogger),
 		auth.HeaderHandler,
 	)
-}()
+	pageAPI.RegistRoute(mux)
 
-var UserAPI Handler = func() Handler {
-	userLogger := log.Logger.WithName("UserAPI")
+	userAPI := user.NewHandler(log.Logger.WithName("UserAPI"))
+	userAPI.RegistRoute(mux)
 
-	return user.NewHandler(userLogger)
-}()
-
-var AuthAPI Handler = func() Handler {
-	authLogger := log.Logger.WithName("AuthAPI")
-
-	return auth.NewHandler(
-		authLogger,
+	authAPI, err := auth.NewHandler(
+		log.Logger.WithName("AuthAPI"),
+		envType,
 	)
-}()
+	if err != nil {
+		return nil, err
+	}
+	authAPI.RegistRoute(mux)
+
+	return mux, nil
+}

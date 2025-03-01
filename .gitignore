@@ -5,3 +5,4 @@ static/
 bin/
 .vscode/
 .env
+*.pem

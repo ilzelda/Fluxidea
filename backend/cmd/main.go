@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"mindlink.io/mindlink/pkg/apis"
 	"mindlink.io/mindlink/pkg/config"
 	"mindlink.io/mindlink/pkg/log"
 	"mindlink.io/mindlink/pkg/server"
@@ -30,7 +31,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := server.New(ServerConfig(cfg)).WithLogger(logger)
+	mux, err := apis.SetupAPI(cfg.Type)
+	if err != nil {
+		logger.Error(err, "Failed to setup mux")
+		os.Exit(1)
+	}
+
+	srv := server.New(ServerConfig(cfg)).WithLogger(logger).WithMultiplexer(mux)
 	if err := srv.Run(); err != nil {
 		logger.Error(err, "Failed to start server")
 		os.Exit(1)

@@ -2,7 +2,12 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,14 +24,30 @@ import (
 	"mindlink.io/mindlink/pkg/models"
 )
 
+var (
+	privKey         *rsa.PrivateKey
+	testKeyFilePath string = "config/test.pem"
+)
+
 type handler struct {
 	log logr.Logger
 }
 
-func NewHandler(log logr.Logger) *handler {
+func NewHandler(log logr.Logger, envType string) (*handler, error) {
+	var err error
+	switch envType {
+	case "DEV", "dev", "development":
+		privKey, err = loadTestPrivateKey()
+	case "PROD", "prod", "production":
+		privKey, err = rsa.GenerateKey(rand.Reader, 2048)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	return &handler{
 		log: log,
-	}
+	}, nil
 }
 
 func (h *handler) RegistRoute(mux *http.ServeMux) {
@@ -196,4 +217,28 @@ func generateJWT(user *models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claim)
 
 	return token.SignedString(privKey)
+}
+
+func loadTestPrivateKey() (*rsa.PrivateKey, error) {
+	f, err := os.Open(testKeyFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	bs, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(bs)
+	if block == nil {
+		return nil, errors.New("failed to parse PEM block")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return key.(*rsa.PrivateKey), nil
 }
