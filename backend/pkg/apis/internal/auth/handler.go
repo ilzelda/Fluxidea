@@ -18,10 +18,10 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"mindlink.io/mindlink/pkg/apis/internal/user/model"
 
 	"github.com/go-logr/logr"
 	"github.com/golang-jwt/jwt/v5"
-	"mindlink.io/mindlink/pkg/models"
 )
 
 var (
@@ -132,8 +132,6 @@ func (uh *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-type ClaimsKey struct{}
-
 func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -151,7 +149,7 @@ func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
 
 		switch scheme {
 		case "Bearer":
-			claim := &models.Claims{}
+			claim := &Claims{}
 			token, err := jwt.ParseWithClaims(param, claim, func(t *jwt.Token) (interface{}, error) {
 				return privKey.Public(), nil
 			})
@@ -183,7 +181,7 @@ func checkEnv() error {
 
 // TODO: 구글 사용자 프로필 관련 정보를 Claim으로 변환하는 로직으로 수정
 // 또는, 사용자 프로필 관련 구조체 추가하여 mindlink 사용자 구조체와 구분
-func getUserInfo(token *oauth2.Token) (*models.User, error) {
+func getUserInfo(token *oauth2.Token) (*model.User, error) {
 	client := oauthConfig.Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
@@ -196,7 +194,7 @@ func getUserInfo(token *oauth2.Token) (*models.User, error) {
 		return nil, err
 	}
 
-	var user models.User
+	var user model.User
 	if err := json.Unmarshal(body, &user); err != nil {
 		return nil, err
 	}
@@ -205,8 +203,8 @@ func getUserInfo(token *oauth2.Token) (*models.User, error) {
 }
 
 // TODO: Claim 구조체에 필요한 사용자 정보 추가
-func generateJWT(user *models.User) (string, error) {
-	claim := &models.Claims{
+func generateJWT(user *model.User) (string, error) {
+	claim := &Claims{
 		ID:    user.ID,
 		Email: user.Email,
 		Name:  user.Name,

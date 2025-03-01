@@ -3,11 +3,11 @@ package apis
 import (
 	"net/http"
 
-	"mindlink.io/mindlink/pkg/apis/auth"
-	"mindlink.io/mindlink/pkg/apis/page"
-	"mindlink.io/mindlink/pkg/apis/user"
+	"mindlink.io/mindlink/pkg/apis/internal/auth"
+	"mindlink.io/mindlink/pkg/apis/internal/page"
+	"mindlink.io/mindlink/pkg/apis/internal/page/repository"
+	"mindlink.io/mindlink/pkg/apis/internal/user"
 	"mindlink.io/mindlink/pkg/log"
-	"mindlink.io/mindlink/pkg/repository"
 )
 
 const (
@@ -15,17 +15,13 @@ const (
 	userFSRoot = "data/user"
 )
 
-type Handler interface {
-	RegistRoute(*http.ServeMux)
-}
-
-func SetupAPI(envType string) (*http.ServeMux, error) {
+func SetupAPIs(envType string) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	pageLogger := log.Logger.WithName("PageAPI")
 	pageAPI := page.NewHandler(
 		pageLogger,
-		repository.NewPageFSRepo(pageFSRoot, pageLogger),
+		repository.NewFileRepo(pageFSRoot, pageLogger),
 		auth.HeaderHandler,
 	)
 	pageAPI.RegistRoute(mux)

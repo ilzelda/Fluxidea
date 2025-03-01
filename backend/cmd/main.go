@@ -31,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux, err := apis.SetupAPI(cfg.Type)
+	mux, err := apis.SetupAPIs(cfg.Type)
 	if err != nil {
 		logger.Error(err, "Failed to setup mux")
 		os.Exit(1)
