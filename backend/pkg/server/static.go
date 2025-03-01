@@ -4,15 +4,18 @@ import (
 	"net/http"
 	"os"
 	"path"
+
+	"github.com/go-logr/logr"
 )
 
 type staticHandler struct {
+	logger   logr.Logger
 	rootPath string
 }
 
 func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filePath := path.Join(h.rootPath, r.URL.Path)
-	logger.Info("Requested file", "path", filePath)
+	h.logger.Info("Requested file", "path", filePath)
 
 	fileInfo, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
