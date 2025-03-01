@@ -9,8 +9,4 @@ type User struct {
 	PictureURL string `json:"picture"`
 }
 
-type UserID string
-
-func (uid UserID) String() string {
-	return string(uid)
-}
+type UserID = string

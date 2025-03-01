@@ -31,9 +31,10 @@ var (
 
 type handler struct {
 	log logr.Logger
+	uu  UserUsecase
 }
 
-func NewHandler(log logr.Logger) (*handler, error) {
+func NewHandler(log logr.Logger, uu UserUsecase) (*handler, error) {
 	var err error
 	switch os.Getenv("APP_ENV") {
 	case "DEV", "dev", "development":
@@ -49,12 +50,13 @@ func NewHandler(log logr.Logger) (*handler, error) {
 
 	return &handler{
 		log: log,
+		uu:  uu,
 	}, nil
 }
 
-func (h *handler) RegistRoute(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/auth/google/login", h.googleLoginHandler)
-	mux.HandleFunc("GET /api/auth/google/callback", h.googleLoginCallbackHandler)
+func (ah *handler) RegistRoute(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/auth/google/login", ah.googleLoginHandler)
+	mux.HandleFunc("GET /api/auth/google/callback", ah.googleLoginCallbackHandler)
 }
 
 // TODO: state의미 알아보고, 적절한 값으로 수정
@@ -64,11 +66,11 @@ var (
 )
 
 // TODO: 응답시 임시로 StatusFound 사용
-func (h *handler) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
-	h.log.Info("google login")
+func (ah *handler) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
+	ah.log.Info("google login")
 
 	if err := checkEnv(); err != nil {
-		h.log.Error(err, "env is not set")
+		ah.log.Error(err, "env is not set")
 		http.Error(w, "env REDIRECT_HOST is not set", http.StatusInternalServerError)
 		return
 	}
@@ -86,8 +88,8 @@ func (h *handler) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: 리디렉션 응답시 임시로 StatusFound 사용,
 // url 기본 값은 root, frontend에서 header로 리다이렉트 uri를 포함한다면, 해당 경로로 이동
-func (uh *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	uh.log.Info("google login callback")
+func (ah *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	ah.log.Info("google login callback")
 	state := r.URL.Query().Get("state")
 	if state != oauthStateString {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
@@ -102,31 +104,33 @@ func (uh *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Req
 
 	oauthTok, err := oauthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		uh.log.Error(err, "failed to exchange token")
+		ah.log.Error(err, "failed to exchange token")
 		http.Error(w, "failed to exchange token", http.StatusInternalServerError)
 		return
 	}
-	uh.log.Info("test token", "OAUTH2 token", oauthTok)
+	ah.log.Info("test token", "OAUTH2 token", oauthTok)
 
 	userInfo, err := getUserInfo(oauthTok)
 	if err != nil {
-		uh.log.Error(err, "failed to get user info")
+		ah.log.Error(err, "failed to get user info")
 		http.Error(w, "failed to get user info", http.StatusInternalServerError)
 		return
 	}
-	uh.log.Info("user info", "userinfo", userInfo)
+	ah.log.Info("user info", "userinfo", userInfo)
 
 	accessToken, err := generateJWT(userInfo)
 	if err != nil {
-		uh.log.Error(err, "failed to generate jwt")
+		ah.log.Error(err, "failed to generate jwt")
 		http.Error(w, "failed to generate jwt", http.StatusInternalServerError)
 		return
 	}
 
+	ah.uu.SignUp(userInfo)
+
 	cookie := new(http.Cookie)
 	cookie.Name = "access-token"
 	cookie.Value = accessToken
-	cookie.HttpOnly = true
+	cookie.HttpOnly = false
 	cookie.Expires = oauthTok.Expiry
 	cookie.Path = "/"
 	http.SetCookie(w, cookie)

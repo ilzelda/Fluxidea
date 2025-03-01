@@ -5,8 +5,9 @@ import (
 
 	"mindlink.io/mindlink/pkg/apis/internal/auth"
 	"mindlink.io/mindlink/pkg/apis/internal/page"
-	"mindlink.io/mindlink/pkg/apis/internal/page/repository"
+	prepo "mindlink.io/mindlink/pkg/apis/internal/page/repository"
 	"mindlink.io/mindlink/pkg/apis/internal/user"
+	urepo "mindlink.io/mindlink/pkg/apis/internal/user/repository"
 	"mindlink.io/mindlink/pkg/log"
 )
 
@@ -21,16 +22,18 @@ func SetupAPIs() (*http.ServeMux, error) {
 	pageLogger := log.Logger.WithName("PageAPI")
 	pageAPI := page.NewHandler(
 		pageLogger,
-		repository.NewFileRepo(pageFSRoot, pageLogger),
+		prepo.NewFileRepo(pageFSRoot, pageLogger),
 		auth.HeaderHandler,
 	)
 	pageAPI.RegistRoute(mux)
 
-	userAPI := user.NewHandler(log.Logger.WithName("UserAPI"))
+	userLogger := log.Logger.WithName("UserAPI")
+	userAPI := user.NewHandler(userLogger)
 	userAPI.RegistRoute(mux)
 
 	authAPI, err := auth.NewHandler(
 		log.Logger.WithName("AuthAPI"),
+		user.NewUsecase(userLogger, urepo.NewFileRepo(userFSRoot, userLogger)),
 	)
 	if err != nil {
 		return nil, err
