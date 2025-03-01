@@ -59,7 +59,7 @@ var (
 	ErrFailedToDecodePage error = errors.New("failed to decode page")
 )
 
-func (repo *FileRepository) ListUserPages(userID string) ([]*model.Page, error) {
+func (repo *FileRepository) ListPages(userID string) ([]*model.Page, error) {
 	userDirPath := filepath.Join(repo.rootDir, userID)
 	userPageNames, err := os.ReadDir(userDirPath)
 	if err != nil {

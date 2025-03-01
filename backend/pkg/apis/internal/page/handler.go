@@ -87,7 +87,7 @@ func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
 
 	userID := claim.ID
 
-	pages, err := ph.repo.ListUserPages(userID)
+	pages, err := ph.repo.ListPages(userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			w.WriteHeader(http.StatusNoContent)
