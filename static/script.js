@@ -405,7 +405,7 @@ async function saveGraph() {
     }
     else{
         try {
-            const response = await fetch(`/api/users/${user_id}/pages/${pageId}`, {
+            const response = await fetch(`/api/pages/${pageId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -436,7 +436,7 @@ async function initializePages() {
         let response;
 
         if(user_id ){
-            response = await fetch(`/api/users/${user_id}/pages`);
+            response = await fetch(`/api/pages`);
             if (!response.ok) {
                 throw new Error(`페이지 초기화 실패 (/api/users/${user_id}/pages)`);
             }
@@ -501,7 +501,7 @@ async function loadSelectedPage(pageId) {
     }
     else{
         try {
-            response = await fetch(`/api/users/${user_id}/pages/${pageId}`);
+            response = await fetch(`/api/pages/${pageId}`);
             if (!response.ok) {
                 throw new Error('페이지 데이터를 가져오는데 실패했습니다.');
             }
@@ -564,7 +564,7 @@ async function createNewPage() {
 
     if(user_id){
         try {
-            const response = await fetch(`/api/users/${user_id}/pages`, {
+            const response = await fetch(`/api/pages`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
