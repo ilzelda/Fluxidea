@@ -2,12 +2,19 @@ package main
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/joho/godotenv"
 	"mindlink.io/mindlink/pkg/apis"
 	"mindlink.io/mindlink/pkg/config"
 	"mindlink.io/mindlink/pkg/log"
 	"mindlink.io/mindlink/pkg/server"
+)
+
+var (
+	VERSION    string
+	COMMIT     string
+	BUILD_DATE string
 )
 
 var logger = log.Logger
@@ -20,7 +27,8 @@ func SayHello() {
 	logger.Info("    :_;:_;:_;:_;:_;`.__.':___.':_;:_;:_;:_;:_;    ")
 	logger.Info("                                                  ")
 	logger.Info("                                                  ")
-	logger.Info("", "APP_ENV", os.Getenv("APP_ENV"))
+	logger.Info("system", "APP_ENV", os.Getenv("APP_ENV"))
+	logger.Info("build info", "GO", runtime.Version(), "VERSION", VERSION, "COMMIT", COMMIT, "BUILD DATE", BUILD_DATE)
 }
 
 func init() {

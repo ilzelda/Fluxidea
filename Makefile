@@ -1,39 +1,36 @@
 NAME := mindlink
-
-.PHONY: build
-build:
-	go build -o ./bin/${NAME} ./cmd/main.go
-
-CONFIG := config.json
-.PHONY: run
-run:
-	CONFIG_FILE_PATH=./config/${CONFIG} go run cmd/main.go
-
 CONTAINER_RUNTIME := docker
 GIT_TAG := $(shell git describe --tags --abbrev=0 2> /dev/null || echo untagged)
 VERSION ?= $(shell if [[ "$(GIT_TAG)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+.*$$ ]]; then echo $(GIT_TAG) | sed -e 's/v\(.*\)/\1/g'; else echo 'untagged'; fi)
 REGISTRY_HOST ?= docker.io
-IMAGE := ${REGISTRY_HOST}/leebee725/mindlink:${VERSION}
+NAMESPACE ?= leebee725
+IMG_WITHOUT_VER ?= ${REGISTRY_HOST}/${NAMESPACE}/${NAME}
+IMAGE := ${IMG_WITHOUT_VER}:${VERSION}
+
+BUILD_FLAGS = -X main.VERSION=${VERSION} -X main.COMMIT=$(shell git rev-parse --short=16 HEAD) -X main.BUILD_DATE=$(shell date -I)
+
+.PHONY: run
+run:
+	@go run -ldflags="${BUILD_FLAGS}" cmd/main.go
+
 .PHONY: image-build
 image-build:
-	${CONTAINER_RUNTIME} buildx build --no-cache -t ${IMAGE} --platform linux/amd64,linux/arm64 .
+	${CONTAINER_RUNTIME} buildx build \
+	--build-arg BUILD_FLAGS="${BUILD_FLAGS}" \
+	--no-cache -t ${IMAGE} --platform linux/amd64,linux/arm64 .
 
 .PHONY: release
 release: image-build
-	${CONTAINER_RUNTIME} tag ${IMAGE} ${REGISTRY_HOST}/leebee725/mindlink:latest
+	${CONTAINER_RUNTIME} tag ${IMAGE} ${IMG_WITHOUT_VER}:latest
 	${CONTAINER_RUNTIME} push ${IMAGE}
-	${CONTAINER_RUNTIME} push ${REGISTRY_HOST}/leebee725/mindlink:latest
+	${CONTAINER_RUNTIME} push ${IMG_WITHOUT_VER}:latest
 
 image-push: image-build
 	${CONTAINER_RUNTIME} push ${IMAGE}
 
 PORT ?= 8080
-CONTAINER_PORT ?= 8080
-DATA_PATH ?= data
+CONTAINER_PORT ?= 80
+DATA_PATH ?= $(shell pwd)/data
 .PHONY: image-run
 image-run:
 	${CONTAINER_RUNTIME} run --name ${NAME} -p ${PORT}:${CONTAINER_PORT} -v $(DATA_PATH):/app/data -d --rm ${IMAGE}
-
-.PHONY: clean
-clean:
-	rm -f ./bin/${NAME}
