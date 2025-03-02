@@ -1,7 +1,5 @@
 data/
 
-static/
-
 bin/
 .vscode/
 .env
