@@ -1,4 +1,4 @@
-package models
+package model
 
 import "github.com/google/uuid"
 
@@ -22,14 +22,4 @@ type Connection struct {
 	Start       int    `json:"start"`
 	End         int    `json:"end"`
 	Description string `json:"description"`
-}
-
-type CreatePageParams struct {
-	Name string `json:"name"`
-}
-
-type UpdatePageParams struct {
-	Name        string       `json:"name"`
-	Nodes       []Node       `json:"nodes,omitempty"`
-	Connections []Connection `json:"connections,omitempty"`
 }

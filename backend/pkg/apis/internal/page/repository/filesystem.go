@@ -8,29 +8,30 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	"mindlink.io/mindlink/pkg/models"
+
+	"mindlink.io/mindlink/pkg/apis/internal/page/model"
 )
 
-type pageFileRepository struct {
+type FileRepository struct {
 	rootDir string
 	logger  logr.Logger
 }
 
-func NewPageFSRepo(root string, logger logr.Logger) *pageFileRepository {
-	return &pageFileRepository{
+func NewFileRepo(root string, logger logr.Logger) *FileRepository {
+	return &FileRepository{
 		rootDir: root,
 		logger:  logger,
 	}
 }
 
-func (repo *pageFileRepository) CreatePage(userID models.UserID, params models.CreatePageParams) (*models.Page, error) {
+func (repo *FileRepository) CreatePage(userID string, params model.CreatePageParams) (*model.Page, error) {
 	// 데이터를 저장할 디렉토리 있으면 사용 없으면 생성하여 사용
-	dirPath := filepath.Join(repo.rootDir, userID.String())
+	dirPath := filepath.Join(repo.rootDir, userID)
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
 		return nil, errors.New("failed to create data directory")
 	}
 
-	page := &models.Page{
+	page := &model.Page{
 		ID:            uuid.New(),
 		Name:          params.Name,
 		NodeNum:       0,
@@ -58,14 +59,14 @@ var (
 	ErrFailedToDecodePage error = errors.New("failed to decode page")
 )
 
-func (repo *pageFileRepository) ListUserPages(userID models.UserID) ([]*models.Page, error) {
-	userDirPath := filepath.Join(repo.rootDir, userID.String())
+func (repo *FileRepository) ListPages(userID string) ([]*model.Page, error) {
+	userDirPath := filepath.Join(repo.rootDir, userID)
 	userPageNames, err := os.ReadDir(userDirPath)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
-	pages := make([]*models.Page, 0, len(userPageNames))
+	pages := make([]*model.Page, 0, len(userPageNames))
 	// TODO: 최근 변경 시간 순으로 정렬
 	for _, page := range userPageNames {
 		pageFilePath := filepath.Join(userDirPath, page.Name())
@@ -75,7 +76,7 @@ func (repo *pageFileRepository) ListUserPages(userID models.UserID) ([]*models.P
 		}
 		defer file.Close()
 
-		var page models.Page
+		var page model.Page
 		if err := json.NewDecoder(file).Decode(&page); err != nil {
 			return nil, ErrFailedToDecodePage
 		}
@@ -90,8 +91,8 @@ var (
 	ErrFailedToEncodePage error = errors.New("failed to encode page")
 )
 
-func (repo *pageFileRepository) GetPage(userID models.UserID, pageID uuid.UUID) (*models.Page, error) {
-	filePath := filepath.Join(repo.rootDir, userID.String(), pageID.String()+".json")
+func (repo *FileRepository) GetPage(userID string, pageID uuid.UUID) (*model.Page, error) {
+	filePath := filepath.Join(repo.rootDir, userID, pageID.String()+".json")
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -100,7 +101,7 @@ func (repo *pageFileRepository) GetPage(userID models.UserID, pageID uuid.UUID) 
 		return nil, ErrFailedToFindPage
 	}
 
-	var page models.Page
+	var page model.Page
 	if err := json.Unmarshal(fileContent, &page); err != nil {
 		return nil, ErrFailedToDecodePage
 	}
@@ -108,15 +109,15 @@ func (repo *pageFileRepository) GetPage(userID models.UserID, pageID uuid.UUID) 
 	return &page, nil
 }
 
-func (repo *pageFileRepository) UpdatePage(userID models.UserID, pageID uuid.UUID, params models.UpdatePageParams) (*models.Page, error) {
-	pageFilePath := filepath.Join(repo.rootDir, userID.String(), pageID.String()+".json")
+func (repo *FileRepository) UpdatePage(userID string, pageID uuid.UUID, params model.UpdatePageParams) (*model.Page, error) {
+	pageFilePath := filepath.Join(repo.rootDir, userID, pageID.String()+".json")
 	oldFile, err := os.Open(pageFilePath)
 	if err != nil {
 		return nil, ErrFailedToAccessPage
 	}
 	defer oldFile.Close()
 
-	var page models.Page
+	var page model.Page
 	if err := json.NewDecoder(oldFile).Decode(&page); err != nil {
 		return nil, ErrFailedToDecodePage
 	}
@@ -145,9 +146,9 @@ func (repo *pageFileRepository) UpdatePage(userID models.UserID, pageID uuid.UUI
 	return &page, nil
 }
 
-func (repo *pageFileRepository) DeletePage(userID models.UserID, pageID uuid.UUID) (*models.Page, error) {
-	filePath := filepath.Join(repo.rootDir, userID.String(), pageID.String()+".json")
-	var page models.Page
+func (repo *FileRepository) DeletePage(userID string, pageID uuid.UUID) (*model.Page, error) {
+	filePath := filepath.Join(repo.rootDir, userID, pageID.String()+".json")
+	var page model.Page
 	if err := func() error {
 		oldFile, err := os.Open(filePath)
 		if err != nil {

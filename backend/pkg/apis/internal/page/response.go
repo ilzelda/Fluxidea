@@ -2,7 +2,8 @@ package page
 
 import (
 	"github.com/google/uuid"
-	"mindlink.io/mindlink/pkg/models"
+
+	"mindlink.io/mindlink/pkg/apis/internal/page/model"
 )
 
 type respUserPage struct {
@@ -18,7 +19,7 @@ type respModifyUserPage struct {
 	SuccessOK bool `json:"success_ok"`
 }
 
-func convertPageIntoResp(page *models.Page) respUserPage {
+func convertPageIntoResp(page *model.Page) respUserPage {
 	return respUserPage{
 		ID:            page.ID,
 		Name:          page.Name,

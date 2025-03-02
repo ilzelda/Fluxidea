@@ -3,29 +3,42 @@ package apis
 import (
 	"net/http"
 
-	"mindlink.io/mindlink/pkg/apis/page"
-	"mindlink.io/mindlink/pkg/apis/user"
+	"mindlink.io/mindlink/pkg/apis/internal/auth"
+	"mindlink.io/mindlink/pkg/apis/internal/page"
+	prepo "mindlink.io/mindlink/pkg/apis/internal/page/repository"
+	"mindlink.io/mindlink/pkg/apis/internal/user"
+	urepo "mindlink.io/mindlink/pkg/apis/internal/user/repository"
 	"mindlink.io/mindlink/pkg/log"
-	"mindlink.io/mindlink/pkg/repository"
 )
 
-const pageFSRoot = "data"
+const (
+	pageFSRoot = "data/page"
+	userFSRoot = "data/user"
+)
 
-type Handler interface {
-	RegsistRoute(*http.ServeMux)
-}
+func SetupAPIs() (*http.ServeMux, error) {
+	mux := http.NewServeMux()
 
-var PageAPI Handler = func() Handler {
 	pageLogger := log.Logger.WithName("PageAPI")
-
-	return page.NewHandler(
+	pageAPI := page.NewHandler(
 		pageLogger,
-		repository.NewPageFSRepo(pageFSRoot, pageLogger),
+		prepo.NewFileRepo(pageFSRoot, pageLogger),
+		auth.HeaderHandler,
 	)
-}()
+	pageAPI.RegistRoute(mux)
 
-var UserAPI Handler = func() Handler {
 	userLogger := log.Logger.WithName("UserAPI")
+	userAPI := user.NewHandler(userLogger)
+	userAPI.RegistRoute(mux)
 
-	return user.NewHandler(userLogger)
-}()
+	authAPI, err := auth.NewHandler(
+		log.Logger.WithName("AuthAPI"),
+		user.NewUsecase(userLogger, urepo.NewFileRepo(userFSRoot, userLogger)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	authAPI.RegistRoute(mux)
+
+	return mux, nil
+}

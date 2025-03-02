@@ -4,47 +4,69 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
-	"mindlink.io/mindlink/pkg/models"
-	"mindlink.io/mindlink/pkg/repository"
+	"mindlink.io/mindlink/pkg/apis/internal/api"
+	"mindlink.io/mindlink/pkg/apis/internal/auth"
+	"mindlink.io/mindlink/pkg/apis/internal/page/model"
+	"mindlink.io/mindlink/pkg/apis/internal/page/repository"
 )
 
 type handler struct {
 	log  logr.Logger
 	repo PageRepository
+	mids []api.Middleware
 }
 
-func NewHandler(log logr.Logger, repo PageRepository) *handler {
+func NewHandler(log logr.Logger, repo PageRepository, mids ...api.Middleware) *handler {
 	return &handler{
 		log:  log,
 		repo: repo,
+		mids: mids,
 	}
 }
 
-func (ph *handler) RegsistRoute(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/users/{user_id}/pages", ph.createUserPage)
-	mux.HandleFunc("GET /api/users/{user_id}/pages", ph.listUserPages)
-	mux.HandleFunc("GET /api/users/{user_id}/pages/{page_id}", ph.loadUserPage)
-	mux.HandleFunc("PUT /api/users/{user_id}/pages/{page_id}", ph.updateUserPage)
-	mux.HandleFunc("DELETE /api/users/{user_id}/pages/{page_id}", ph.deleteUserPage)
+func (ph *handler) RegistRoute(mux *http.ServeMux) {
+	ph.registRoute(mux, "POST /api/pages", ph.createUserPage)
+	ph.registRoute(mux, "GET /api/pages", ph.listUserPages)
+	ph.registRoute(mux, "GET /api/pages/{page_id}", ph.loadUserPage)
+	ph.registRoute(mux, "PUT /api/pages/{page_id}", ph.updateUserPage)
+	ph.registRoute(mux, "DELETE /api/pages/{page_id}", ph.deleteUserPage)
 }
 
-const dataDir string = "data"
+func (ph *handler) registRoute(mux *http.ServeMux, pattern string, fn http.HandlerFunc) {
+	mux.HandleFunc(pattern, ph.chain(fn))
+}
+
+func (ph *handler) chain(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, mid := range slices.Backward(ph.mids) {
+			next = mid(next)
+		}
+		next(w, r)
+	}
+}
 
 func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*auth.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
 
-	var params models.CreatePageParams
+	userID := claim.ID
+
+	var params model.CreatePageParams
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	r.Body.Close()
 
-	page, err := ph.repo.CreatePage(models.UserID(userID), params)
+	page, err := ph.repo.CreatePage(userID, params)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -57,9 +79,15 @@ func (ph *handler) createUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*auth.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
 
-	pages, err := ph.repo.ListUserPages(models.UserID(userID))
+	userID := claim.ID
+
+	pages, err := ph.repo.ListPages(userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			w.WriteHeader(http.StatusNoContent)
@@ -87,7 +115,13 @@ func (ph *handler) listUserPages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*auth.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Load user page", "User", userID, "PageID", pageID)
 
@@ -96,7 +130,7 @@ func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to parse page id", http.StatusBadRequest)
 	}
 
-	page, err := ph.repo.GetPage(models.UserID(userID), pid)
+	page, err := ph.repo.GetPage(userID, pid)
 	if err != nil {
 		if errors.Is(err, repository.ErrPageNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -114,7 +148,14 @@ func (ph *handler) loadUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*auth.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
+
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Update user page", "User", userID, "PageID", pageID)
 
@@ -123,14 +164,14 @@ func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to parse page id", http.StatusBadRequest)
 	}
 
-	var params models.UpdatePageParams
+	var params model.UpdatePageParams
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	r.Body.Close()
 
-	_, err = ph.repo.UpdatePage(models.UserID(userID), pid, params)
+	_, err = ph.repo.UpdatePage(userID, pid, params)
 	if err != nil {
 		if errors.Is(err, repository.ErrFailedToAccessPage) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -151,7 +192,13 @@ func (ph *handler) updateUserPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *handler) deleteUserPage(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("user_id")
+	claim, ok := r.Context().Value(auth.ClaimsKey{}).(*auth.Claims)
+	if !ok {
+		http.Error(w, "failed to get claims", http.StatusInternalServerError)
+		return
+	}
+
+	userID := claim.ID
 	pageID := r.PathValue("page_id")
 	ph.log.Info("Delete user page", "User", userID, "PageID", pageID)
 
@@ -160,7 +207,7 @@ func (ph *handler) deleteUserPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to parse page id", http.StatusBadRequest)
 	}
 
-	if _, err := ph.repo.DeletePage(models.UserID(userID), pid); err != nil {
+	if _, err := ph.repo.DeletePage(userID, pid); err != nil {
 		if errors.Is(err, repository.ErrFailedToDecodePage) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

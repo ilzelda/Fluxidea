@@ -1,4 +1,6 @@
 {
-    "port": "8080",
-    "root_path": "static"
+    "server": {
+        "port": "8080",
+        "root_path": "static"
+    }
 }
