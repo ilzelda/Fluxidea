@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -140,37 +139,32 @@ func (ah *handler) googleLoginCallbackHandler(w http.ResponseWriter, r *http.Req
 
 func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if auth == "" {
-			// TODO: 401로 보낼지 200에 빈값을 보낼지 결정, 일단 401로 보내기
-			http.Error(w, "authorization required", http.StatusUnauthorized)
+		cookie, err := r.Cookie("access-token")
+		if err != nil {
+			switch {
+			case errors.Is(err, http.ErrNoCookie):
+				http.Error(w, "cookie not found", http.StatusBadRequest)
+			default:
+				http.Error(w, "server error", http.StatusInternalServerError)
+			}
 			return
 		}
 
-		scheme, param, found := strings.Cut(auth, " ")
-		if !found {
-			http.Error(w, "invalid authorization header", http.StatusBadRequest)
+		claim := &Claims{}
+		token, err := jwt.ParseWithClaims(cookie.Value, claim, func(t *jwt.Token) (interface{}, error) {
+			return privKey.Public(), nil
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to parse token: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
-		switch scheme {
-		case "Bearer":
-			claim := &Claims{}
-			token, err := jwt.ParseWithClaims(param, claim, func(t *jwt.Token) (interface{}, error) {
-				return privKey.Public(), nil
-			})
-			if err != nil {
-				http.Error(w, fmt.Sprintf("failed to parse token: %s", err.Error()), http.StatusBadRequest)
-				return
-			}
-
-			if token.Valid {
-				ctx := context.WithValue(r.Context(), ClaimsKey{}, claim)
-				r = r.WithContext(ctx)
-			} else {
-				http.Error(w, "invalid token", http.StatusUnauthorized)
-				return
-			}
+		if token.Valid {
+			ctx := context.WithValue(r.Context(), ClaimsKey{}, claim)
+			r = r.WithContext(ctx)
+		} else {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
 		}
 
 		next(w, r)
