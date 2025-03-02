@@ -22,6 +22,7 @@ COPY --from=builder /app/mindlink .
 COPY --from=builder /app/static ./static
 
 # Copy config file
+COPY config/config.json .
 COPY config/.env ./config/.env
 
 # Expose port
