@@ -22,7 +22,7 @@ let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
-let user_id ="";
+let logged_in = false;
 
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -435,10 +435,10 @@ async function initializePages() {
     try {
         let response;
 
-        if(user_id ){
+        if(logged_in ){
             response = await fetch(`/api/pages`);
             if (!response.ok) {
-                throw new Error(`페이지 초기화 실패 (/api/users/${user_id}/pages)`);
+                throw new Error(`페이지 초기화 실패`);
             }
         }
         else{
@@ -495,7 +495,7 @@ async function loadSelectedPage(pageId) {
     let response;
     let data;
 
-    if(pageId === 'temp'){
+    if(!logged_in){
         let tempPage = localStorage.getItem('mindlink_temp_page');
         data = JSON.parse(tempPage)[0].data;
     }
@@ -545,7 +545,7 @@ async function loadSelectedPage(pageId) {
 }
 
 async function createNewPage() {
-    if(!user_id){
+    if(!logged_in){
         let tempPage = localStorage.getItem('mindlink_temp_page');
         if (tempPage !== null) {
             alert('로그인이 필요합니다.');
@@ -562,7 +562,7 @@ async function createNewPage() {
     
     let newPage;
 
-    if(user_id){
+    if(logged_in){
         try {
             const response = await fetch(`/api/pages`, {
                 method: 'POST',
@@ -912,18 +912,26 @@ function setupKeyboardListeners() {
     });
 }
 
-function setUserInfo(){
-    let mindlink_token = localStorage.getItem('mindlink_token');
-    if (mindlink_token === null) {
+function getCookie() {
+    const cookies = document.cookie.split("; "); // 쿠키 문자열을 `; ` 기준으로 분할
+    for (let cookie of cookies) {
+        let [key, value] = cookie.split("="); // `=` 기준으로 키와 값 분리
+        if (key === "access-token" ) return decodeURIComponent(value); // 원하는 쿠키 찾으면 반환
+    }
+    return null; // 없으면 null 반환
+}
+
+function checkLoggedIn(){
+    if (getCookie() === null) {
         alert('로그인이 필요합니다.');
     }
     else{
-        user_id = mindlink_token.user_id;
+        logged_in = true;
     }
 }
 
 function initializeApp() {
-    setUserInfo();
+    checkLoggedIn();
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     initializePages();
