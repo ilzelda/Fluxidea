@@ -7,6 +7,7 @@ const ctx = canvas.getContext('2d');
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
 const organizeBtn = document.getElementById('organizeBtn');
+const organizeForceBtn = document.getElementById('organizeForceBtn');
 const testBtn = document.getElementById('testBtn');
 const saveBtn = document.getElementById('saveBtn');
 const newPageBtn = document.getElementById('newPageBtn');
@@ -23,6 +24,10 @@ let selectedConnection = null;
 let isDragging = false;
 let nextNodeId = 0; // 새 노드 추가
 let logged_in = false;
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+const scaleFactor = 1.1;
 
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -34,11 +39,11 @@ const levelColors = [
 
 // 노드 그리기
 function drawNode(node) {
-    const maxWidth = 150; // 최대 너비를 줄임
-    const padding = 5; // 패딩을 줄임
-    const lineHeight = 16; // 줄 높이를 줄임
+    const maxWidth = 150; 
+    const padding = 5; 
+    const lineHeight = 16; 
 
-    ctx.font = '12px Arial'; // 폰트 크기를 줄임
+    ctx.font = '12px Arial'; 
 
     // 텍스트 줄 바꿈
     const words = node.text.split(' ');
@@ -61,20 +66,18 @@ function drawNode(node) {
     const textWidth = Math.min(maxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)));
     const nodeWidth = textWidth + padding * 2;
     const nodeHeight = lines.length * lineHeight + padding * 2;
+    // 노드 크기 저장 (연결선 그리기에 사용)
+    node.width = nodeWidth;
+    node.height = nodeHeight;
 
-    if (node.level !== undefined) { // 배경 그리기
+    // 배경 그리기
+    if (node.level !== undefined) { 
         ctx.fillStyle = levelColors[node.level % levelColors.length];
     } else {
         ctx.fillStyle = 'white';
     }
 
-    if (selectedNode === node) {
-        ctx.lineWidth = 3;
-    }
-    else {
-        ctx.lineWidth = 1;
-    }
-    
+    // 선택된 노드 강조
     if(node === selectedNode) {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
@@ -84,6 +87,7 @@ function drawNode(node) {
         ctx.lineWidth = 1;
     }
 
+    // 사각형 그리기
     ctx.beginPath();
     ctx.roundRect(node.x - nodeWidth / 2, node.y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
     ctx.fill();
@@ -97,10 +101,6 @@ function drawNode(node) {
         const y = node.y - (lines.length - 1) * lineHeight / 2 + index * lineHeight;
         ctx.fillText(line, node.x, y);
     });
-
-    // 노드 크기 저장 (연결선 그리기에 사용)
-    node.width = nodeWidth;
-    node.height = nodeHeight;
 
     // 선택된 노드에 대해 휴지통 아이콘 그리기
     if (selectedNode === node) {
@@ -192,8 +192,14 @@ function drawConnection(conn) {
 // 마인드맵 그리기
 function drawMindmap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    
     nodes.forEach(drawNode);
     connections.forEach(drawConnection);
+    
+    ctx.restore();
 }
 
 // 노드 크기 계산 함수
@@ -518,20 +524,21 @@ async function loadSelectedPage(pageId) {
             item.classList.add('active');
             console.log('active 클래스 추가 :', pageId);
 
-            // 휴지통 아이콘 요소 생성 (Font Awesome 아이콘 사용 예)
-            const trashIcon = document.createElement('span');
-            trashIcon.className = 'trash-icon';
-            trashIcon.innerHTML = '<i class="fa fa-trash"></i>';
-            trashIcon.style.cursor = 'pointer';
+            if (!item.querySelector('.trash-icon')) {
+                 // 휴지통 아이콘 요소 생성 (Font Awesome 아이콘 사용 예)
+                const trashIcon = document.createElement('span');
+                trashIcon.className = 'trash-icon';
+                trashIcon.innerHTML = '<i class="fa fa-trash"></i>';
+                trashIcon.style.cursor = 'pointer';
 
-            // 휴지통 아이콘 클릭 시 삭제 로직 구현
-            trashIcon.addEventListener('click', (e) => {
-                e.stopPropagation(); // 부모 요소 클릭 이벤트 방지
-                deletePage(pageId);
-            });
-            // active 상태인 요소에 휴지통 아이콘 추가
-            item.appendChild(trashIcon);
-
+                // 휴지통 아이콘 클릭 시 삭제 로직 구현
+                trashIcon.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 부모 요소 클릭 이벤트 방지
+                    deletePage(pageId);
+                });
+                // active 상태인 요소에 휴지통 아이콘 추가
+                item.appendChild(trashIcon);
+            }
         } else {
             item.classList.remove('active');
             if (item.querySelector('.trash-icon')) {
@@ -558,6 +565,11 @@ async function loadSelectedPage(pageId) {
     else{
         generateGraphStructure();
     }
+    
+    offsetX = 0;
+    offsetY = 0;
+    scale = 1;
+    
     drawMindmap();
     
 }
@@ -870,6 +882,27 @@ function onMouseUp(e) {
     drawMindmap();
 }
 
+function onMouseWheel(e) {
+    e.preventDefault();
+    console.log('mouse wheel event:', e);
+
+    // 마우스 위치 (canvas 내 좌표)
+    const { offsetX: mouseX, offsetY: mouseY } = e;
+    // 휠 방향에 따라 확대 또는 축소 결정
+    const delta = e.deltaY < 0 ? 1 : -1;
+    const zoom = Math.pow(scaleFactor, delta);
+    
+    // 마우스 위치를 기준으로 오프셋 업데이트
+    offsetX = mouseX - zoom * (mouseX - offsetX);
+    offsetY = mouseY - zoom * (mouseY - offsetY);
+    
+    // 스케일 업데이트
+    scale *= zoom;
+    
+    drawMindmap();
+}
+
+
 function resizeCanvas() {
     const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
@@ -879,9 +912,12 @@ function resizeCanvas() {
 
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
-        // organizeNodes();
-        organizeNodes_force();
+        organizeNodes();
+        drawMindmap();
+    });
 
+    organizeForceBtn.addEventListener('click', () => {
+        organizeNodes_force();
         drawMindmap();
     });
 
@@ -906,6 +942,7 @@ function setupCanvasListeners() {
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onMouseWheel);
 }
 
 function setupKeyboardListeners() {
