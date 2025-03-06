@@ -335,8 +335,8 @@ function generateTestGraph() {
     connections = [];
     nextNodeId = 0;
 
-    const nodeCount = 10; // 생성할 노드 수
-    const maxConnections = 3; // 각 노드당 최대 연결 수
+    const nodeCount = 100; // 생성할 노드 수
+    const maxConnections = 10; // 각 노드당 최대 연결 수
 
     // 노드 생성
     for (let i = 0; i < nodeCount; i++) {
@@ -517,8 +517,26 @@ async function loadSelectedPage(pageId) {
         if (item.dataset.pageId === pageId) {
             item.classList.add('active');
             console.log('active 클래스 추가 :', pageId);
+
+            // 휴지통 아이콘 요소 생성 (Font Awesome 아이콘 사용 예)
+            const trashIcon = document.createElement('span');
+            trashIcon.className = 'trash-icon';
+            trashIcon.innerHTML = '<i class="fa fa-trash"></i>';
+            trashIcon.style.cursor = 'pointer';
+
+            // 휴지통 아이콘 클릭 시 삭제 로직 구현
+            trashIcon.addEventListener('click', (e) => {
+                e.stopPropagation(); // 부모 요소 클릭 이벤트 방지
+                deletePage(pageId);
+            });
+            // active 상태인 요소에 휴지통 아이콘 추가
+            item.appendChild(trashIcon);
+
         } else {
             item.classList.remove('active');
+            if (item.querySelector('.trash-icon')) {
+                item.querySelector('.trash-icon').remove();
+            }
         }
     });
 
@@ -602,6 +620,30 @@ async function createNewPage() {
 
     // 새로 생성된 페이지 로드
     loadSelectedPage(newPage.id);
+}
+
+async function deletePage(pageId) {
+    if (confirm('정말로 이 페이지를 삭제하시겠습니까?')) {
+        const response = await fetch(`/api/pages/${pageId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            console.log('페이지 삭제에 실패했습니다.', response.status);
+        }
+        else{
+            console.log('페이지 삭제 성공');
+            const pageItems = document.querySelectorAll('#pageList .page-item');
+            await pageItems.forEach(item => {
+                if (item.dataset.pageId === pageId) {
+                    item.remove();
+                }
+            });
+            if (document.querySelector('#pageList .page-item')) {
+                loadSelectedPage(document.querySelector('#pageList .page-item').dataset.pageId);
+            }
+        }
+    }
 }
 
 function createNode(x, y) {
@@ -921,12 +963,19 @@ function getCookie() {
     return null; // 없으면 null 반환
 }
 
+function deleteCookie(){
+    document.cookie ="access-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    window.location.reload();
+}
+
 function checkLoggedIn(){
     if (getCookie() === null) {
         alert('로그인이 필요합니다.');
     }
     else{
         logged_in = true;
+        document.getElementById("login-text").innerText = "Logout";
+        document.getElementById("google-login-btn").addEventListener("click", deleteCookie);
     }
 }
 
