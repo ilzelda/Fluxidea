@@ -12,18 +12,23 @@ const testBtn = document.getElementById('testBtn');
 const saveBtn = document.getElementById('saveBtn');
 const newPageBtn = document.getElementById('newPageBtn');
 
+let logged_in = false;
+
 let nodes = [];
 let connections = [];
 let graph = {};
 let parentNodes = [];
+let parentIndex = 0;
+let nextNodeId = 0; // 새 노드 추가
+
 let isConnectMode = false;
 let isSelectingParent = false;
-let parentIndex = 0;
 let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
-let nextNodeId = 0; // 새 노드 추가
-let logged_in = false;
+
+let startDragX = 0;
+let startDragY = 0;
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
@@ -718,6 +723,12 @@ function deleteConnection(connection) {
     drawMindmap();
 }
 
+function getRealCoordinates(mouseX, mouseY) {
+    const realX = (mouseX - offsetX) / scale;
+    const realY = (mouseY - offsetY) / scale;
+    return { x: realX, y: realY };
+}
+
 /** 
  * 연결선 클릭 감지 함수
  * 
@@ -761,8 +772,10 @@ function isClickOnConnection(x, y, conn) {
 
 function onMouseDown(e) {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    const { x, y } = getRealCoordinates(canvasX, canvasY);
 
     // 선택된 노드의 휴지통 아이콘 클릭 확인
     if (selectedNode && selectedNode.deleteIcon) {
@@ -829,6 +842,11 @@ function onMouseDown(e) {
             selectedNode = null;
             selectedConnection = null;
             parentIndex = 0;
+
+            isDragging = true;
+            // 드래그 시작 시 마우스 좌표와 현재 offset의 차이를 저장
+            startDragX = e.offsetX - offsetX;
+            startDragY = e.offsetY - offsetY;
         }
     }
     
@@ -836,7 +854,7 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
-    if (!isDragging || !selectedNode) return;
+    if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -848,15 +866,20 @@ function onMouseMove(e) {
         ctx.moveTo(selectedNode.x, selectedNode.y);
         ctx.lineTo(x, y);
         ctx.stroke();
-    } else {
+    } else if (selectedNode) {
         selectedNode.x = x;
         selectedNode.y = y;
+        drawMindmap();
+    } else{
+        offsetX = e.offsetX - startDragX;
+        offsetY = e.offsetY - startDragY;
+
         drawMindmap();
     }
 }
 
 function onMouseUp(e) {
-    if (!isDragging || !selectedNode) return;
+    if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -884,7 +907,6 @@ function onMouseUp(e) {
 
 function onMouseWheel(e) {
     e.preventDefault();
-    console.log('mouse wheel event:', e);
 
     // 마우스 위치 (canvas 내 좌표)
     const { offsetX: mouseX, offsetY: mouseY } = e;
