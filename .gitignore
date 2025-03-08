@@ -2,5 +2,5 @@ data/
 
 bin/
 .vscode/
-.env
+*.env
 *.pem

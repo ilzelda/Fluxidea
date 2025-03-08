@@ -16,29 +16,44 @@ const (
 	userFSRoot = "data/user"
 )
 
-func SetupAPIs() (*http.ServeMux, error) {
-	mux := http.NewServeMux()
+type Handler interface {
+	RegistRoute(*http.ServeMux)
+}
 
-	pageLogger := log.Logger.WithName("PageAPI")
-	pageAPI := page.NewHandler(
-		pageLogger,
-		prepo.NewFileRepo(pageFSRoot, pageLogger),
-		auth.HeaderHandler,
-	)
-	pageAPI.RegistRoute(mux)
+var (
+	authAPI Handler
+	pageAPI Handler
+	userAPI Handler
 
-	userLogger := log.Logger.WithName("UserAPI")
-	userAPI := user.NewHandler(userLogger)
-	userAPI.RegistRoute(mux)
+	authLogger = log.Logger.WithName("AuthAPI")
+	pageLogger = log.Logger.WithName("PageAPI")
+	userLogger = log.Logger.WithName("UserAPI")
 
-	authAPI, err := auth.NewHandler(
-		log.Logger.WithName("AuthAPI"),
-		user.NewUsecase(userLogger, urepo.NewFileRepo(userFSRoot, userLogger)),
-	)
+	pageRepo    = prepo.NewFileRepo(pageFSRoot, pageLogger)
+	userRepo    = urepo.NewFileRepo(userFSRoot, userLogger)
+	userUsecase = user.NewUsecase(userLogger, userRepo)
+)
+
+func setComponent() error {
+	var err error
+	authAPI, err = auth.NewHandler(authLogger, userUsecase)
 	if err != nil {
+		return err
+	}
+	pageAPI = page.NewHandler(pageLogger, pageRepo, auth.HeaderHandler)
+	userAPI = user.NewHandler(userLogger, userUsecase, auth.HeaderHandler)
+	return nil
+}
+
+func SetupAPIs() (*http.ServeMux, error) {
+	if err := setComponent(); err != nil {
 		return nil, err
 	}
+	mux := http.NewServeMux()
+
 	authAPI.RegistRoute(mux)
+	pageAPI.RegistRoute(mux)
+	userAPI.RegistRoute(mux)
 
 	return mux, nil
 }

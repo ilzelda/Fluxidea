@@ -69,15 +69,15 @@ func (ah *handler) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 	ah.log.Info("google login")
 
 	if err := checkEnv(); err != nil {
-		ah.log.Error(err, "env is not set")
-		http.Error(w, "env REDIRECT_HOST is not set", http.StatusInternalServerError)
+		ah.log.Error(err, "no required env")
+		http.Error(w, "no required env", http.StatusInternalServerError)
 		return
 	}
 
 	oauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  "http://" + path.Join(os.Getenv("REDIRECT_HOST"), "/api/auth/google/callback"),
+		RedirectURL:  "http://" + path.Join(r.Host, "/api/auth/google/callback"),
 		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
 		Endpoint:     google.Endpoint,
 	}
@@ -172,8 +172,7 @@ func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func checkEnv() error {
-	if os.Getenv("GOOGLE_CLIENT_ID") == "" || os.Getenv("GOOGLE_CLIENT_SECRET") == "" ||
-		os.Getenv("REDIRECT_HOST") == "" {
+	if os.Getenv("GOOGLE_CLIENT_ID") == "" || os.Getenv("GOOGLE_CLIENT_SECRET") == "" {
 		return fmt.Errorf("required env is not set")
 	}
 	return nil
