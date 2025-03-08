@@ -1,5 +1,5 @@
 const login_url = "/api/auth/google/login";
 
-document.getElementById("login-btn").addEventListener("click", function () {
-    window.location.href = login_url; // OAuth 로그인 페이지로 이동
+document.getElementById("google-login-btn").addEventListener("click", function (event) {
+    window.location.href = "/api/auth/google/login"; // 백엔드에서 OAuth 처리
 });

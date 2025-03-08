@@ -7,22 +7,32 @@ const ctx = canvas.getContext('2d');
 const newNodeBtn = document.getElementById('newNodeBtn');
 const connectModeBtn = document.getElementById('connectModeBtn');
 const organizeBtn = document.getElementById('organizeBtn');
+const organizeForceBtn = document.getElementById('organizeForceBtn');
 const testBtn = document.getElementById('testBtn');
 const saveBtn = document.getElementById('saveBtn');
 const newPageBtn = document.getElementById('newPageBtn');
+
+let logged_in = false;
 
 let nodes = [];
 let connections = [];
 let graph = {};
 let parentNodes = [];
+let parentIndex = 0;
+let nextNodeId = 0; // 새 노드 추가
+
 let isConnectMode = false;
 let isSelectingParent = false;
-let parentIndex = 0;
 let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
-let nextNodeId = 0; // 새 노드 추가
-let logged_in = false;
+
+let startDragX = 0;
+let startDragY = 0;
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+const scaleFactor = 1.1;
 
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -34,11 +44,11 @@ const levelColors = [
 
 // 노드 그리기
 function drawNode(node) {
-    const maxWidth = 150; // 최대 너비를 줄임
-    const padding = 5; // 패딩을 줄임
-    const lineHeight = 16; // 줄 높이를 줄임
+    const maxWidth = 150; 
+    const padding = 5; 
+    const lineHeight = 16; 
 
-    ctx.font = '12px Arial'; // 폰트 크기를 줄임
+    ctx.font = '12px Arial'; 
 
     // 텍스트 줄 바꿈
     const words = node.text.split(' ');
@@ -61,20 +71,18 @@ function drawNode(node) {
     const textWidth = Math.min(maxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)));
     const nodeWidth = textWidth + padding * 2;
     const nodeHeight = lines.length * lineHeight + padding * 2;
+    // 노드 크기 저장 (연결선 그리기에 사용)
+    node.width = nodeWidth;
+    node.height = nodeHeight;
 
-    if (node.level !== undefined) { // 배경 그리기
+    // 배경 그리기
+    if (node.level !== undefined) { 
         ctx.fillStyle = levelColors[node.level % levelColors.length];
     } else {
         ctx.fillStyle = 'white';
     }
 
-    if (selectedNode === node) {
-        ctx.lineWidth = 3;
-    }
-    else {
-        ctx.lineWidth = 1;
-    }
-    
+    // 선택된 노드 강조
     if(node === selectedNode) {
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
@@ -84,6 +92,7 @@ function drawNode(node) {
         ctx.lineWidth = 1;
     }
 
+    // 사각형 그리기
     ctx.beginPath();
     ctx.roundRect(node.x - nodeWidth / 2, node.y - nodeHeight / 2, nodeWidth, nodeHeight, 5);
     ctx.fill();
@@ -97,10 +106,6 @@ function drawNode(node) {
         const y = node.y - (lines.length - 1) * lineHeight / 2 + index * lineHeight;
         ctx.fillText(line, node.x, y);
     });
-
-    // 노드 크기 저장 (연결선 그리기에 사용)
-    node.width = nodeWidth;
-    node.height = nodeHeight;
 
     // 선택된 노드에 대해 휴지통 아이콘 그리기
     if (selectedNode === node) {
@@ -192,8 +197,14 @@ function drawConnection(conn) {
 // 마인드맵 그리기
 function drawMindmap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    
     nodes.forEach(drawNode);
     connections.forEach(drawConnection);
+    
+    ctx.restore();
 }
 
 // 노드 크기 계산 함수
@@ -335,8 +346,8 @@ function generateTestGraph() {
     connections = [];
     nextNodeId = 0;
 
-    const nodeCount = 10; // 생성할 노드 수
-    const maxConnections = 3; // 각 노드당 최대 연결 수
+    const nodeCount = 100; // 생성할 노드 수
+    const maxConnections = 10; // 각 노드당 최대 연결 수
 
     // 노드 생성
     for (let i = 0; i < nodeCount; i++) {
@@ -517,8 +528,27 @@ async function loadSelectedPage(pageId) {
         if (item.dataset.pageId === pageId) {
             item.classList.add('active');
             console.log('active 클래스 추가 :', pageId);
+
+            if (!item.querySelector('.trash-icon')) {
+                 // 휴지통 아이콘 요소 생성 (Font Awesome 아이콘 사용 예)
+                const trashIcon = document.createElement('span');
+                trashIcon.className = 'trash-icon';
+                trashIcon.innerHTML = '<i class="fa fa-trash"></i>';
+                trashIcon.style.cursor = 'pointer';
+
+                // 휴지통 아이콘 클릭 시 삭제 로직 구현
+                trashIcon.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 부모 요소 클릭 이벤트 방지
+                    deletePage(pageId);
+                });
+                // active 상태인 요소에 휴지통 아이콘 추가
+                item.appendChild(trashIcon);
+            }
         } else {
             item.classList.remove('active');
+            if (item.querySelector('.trash-icon')) {
+                item.querySelector('.trash-icon').remove();
+            }
         }
     });
 
@@ -540,6 +570,11 @@ async function loadSelectedPage(pageId) {
     else{
         generateGraphStructure();
     }
+    
+    offsetX = 0;
+    offsetY = 0;
+    scale = 1;
+    
     drawMindmap();
     
 }
@@ -604,6 +639,30 @@ async function createNewPage() {
     loadSelectedPage(newPage.id);
 }
 
+async function deletePage(pageId) {
+    if (confirm('정말로 이 페이지를 삭제하시겠습니까?')) {
+        const response = await fetch(`/api/pages/${pageId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            console.log('페이지 삭제에 실패했습니다.', response.status);
+        }
+        else{
+            console.log('페이지 삭제 성공');
+            const pageItems = document.querySelectorAll('#pageList .page-item');
+            await pageItems.forEach(item => {
+                if (item.dataset.pageId === pageId) {
+                    item.remove();
+                }
+            });
+            if (document.querySelector('#pageList .page-item')) {
+                loadSelectedPage(document.querySelector('#pageList .page-item').dataset.pageId);
+            }
+        }
+    }
+}
+
 function createNode(x, y) {
     let text = prompt('노드 텍스트를 입력하세요:', '새 노드');
     if (text === null) return;
@@ -664,6 +723,12 @@ function deleteConnection(connection) {
     drawMindmap();
 }
 
+function getRealCoordinates(mouseX, mouseY) {
+    const realX = (mouseX - offsetX) / scale;
+    const realY = (mouseY - offsetY) / scale;
+    return { x: realX, y: realY };
+}
+
 /** 
  * 연결선 클릭 감지 함수
  * 
@@ -707,8 +772,10 @@ function isClickOnConnection(x, y, conn) {
 
 function onMouseDown(e) {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+
+    const { x, y } = getRealCoordinates(canvasX, canvasY);
 
     // 선택된 노드의 휴지통 아이콘 클릭 확인
     if (selectedNode && selectedNode.deleteIcon) {
@@ -775,6 +842,11 @@ function onMouseDown(e) {
             selectedNode = null;
             selectedConnection = null;
             parentIndex = 0;
+
+            isDragging = true;
+            // 드래그 시작 시 마우스 좌표와 현재 offset의 차이를 저장
+            startDragX = e.offsetX - offsetX;
+            startDragY = e.offsetY - offsetY;
         }
     }
     
@@ -782,7 +854,7 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
-    if (!isDragging || !selectedNode) return;
+    if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -794,15 +866,20 @@ function onMouseMove(e) {
         ctx.moveTo(selectedNode.x, selectedNode.y);
         ctx.lineTo(x, y);
         ctx.stroke();
-    } else {
+    } else if (selectedNode) {
         selectedNode.x = x;
         selectedNode.y = y;
+        drawMindmap();
+    } else{
+        offsetX = e.offsetX - startDragX;
+        offsetY = e.offsetY - startDragY;
+
         drawMindmap();
     }
 }
 
 function onMouseUp(e) {
-    if (!isDragging || !selectedNode) return;
+    if (!isDragging) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -828,6 +905,26 @@ function onMouseUp(e) {
     drawMindmap();
 }
 
+function onMouseWheel(e) {
+    e.preventDefault();
+
+    // 마우스 위치 (canvas 내 좌표)
+    const { offsetX: mouseX, offsetY: mouseY } = e;
+    // 휠 방향에 따라 확대 또는 축소 결정
+    const delta = e.deltaY < 0 ? 1 : -1;
+    const zoom = Math.pow(scaleFactor, delta);
+    
+    // 마우스 위치를 기준으로 오프셋 업데이트
+    offsetX = mouseX - zoom * (mouseX - offsetX);
+    offsetY = mouseY - zoom * (mouseY - offsetY);
+    
+    // 스케일 업데이트
+    scale *= zoom;
+    
+    drawMindmap();
+}
+
+
 function resizeCanvas() {
     const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
@@ -837,9 +934,12 @@ function resizeCanvas() {
 
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
-        // organizeNodes();
-        organizeNodes_force();
+        organizeNodes();
+        drawMindmap();
+    });
 
+    organizeForceBtn.addEventListener('click', () => {
+        organizeNodes_force();
         drawMindmap();
     });
 
@@ -864,6 +964,7 @@ function setupCanvasListeners() {
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onMouseWheel);
 }
 
 function setupKeyboardListeners() {
@@ -921,12 +1022,19 @@ function getCookie() {
     return null; // 없으면 null 반환
 }
 
+function deleteCookie(){
+    document.cookie ="access-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    window.location.reload();
+}
+
 function checkLoggedIn(){
     if (getCookie() === null) {
         alert('로그인이 필요합니다.');
     }
     else{
         logged_in = true;
+        document.getElementById("login-text").innerText = "Logout";
+        document.getElementById("google-login-btn").addEventListener("click", deleteCookie);
     }
 }
 
