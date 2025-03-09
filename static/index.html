@@ -23,10 +23,9 @@
                 <button id="connectModeBtn">연결 모드로 전환</button>
                 <button id="organizeBtn">정리</button>
                 <button id="organizeForceBtn">정리(force)</button>
-
                 <button id="testBtn">테스트 그래프 생성</button>
                 <button id="saveBtn">저장</button>
-
+                <button id="changeViewBtn">3D 모드로 전환</button>
                 <button id='google-login-btn' class="gsi-material-button">
                     <div class="gsi-material-button-state"></div>
                     <div class="gsi-material-button-content-wrapper">
@@ -52,7 +51,14 @@
             </div>
         </div>
     </div>
-
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@v0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.170.0/examples/jsm/"
+          }
+        }
+    </script>
     <script type="module" src="script.js"></script>
     <script type="module" src="auth.js"></script>
 </body>

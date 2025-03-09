@@ -1,4 +1,6 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const canvasContainer = document.getElementById('canvasContainer');
 const canvas = document.getElementById('mindmapCanvas');
@@ -11,6 +13,7 @@ const organizeForceBtn = document.getElementById('organizeForceBtn');
 const testBtn = document.getElementById('testBtn');
 const saveBtn = document.getElementById('saveBtn');
 const newPageBtn = document.getElementById('newPageBtn');
+const changeViewBtn = document.getElementById('changeViewBtn');
 
 let logged_in = false;
 
@@ -26,6 +29,7 @@ let isSelectingParent = false;
 let selectedNode = null;
 let selectedConnection = null;
 let isDragging = false;
+let isView3D = false;
 
 let startDragX = 0;
 let startDragY = 0;
@@ -34,13 +38,15 @@ let offsetX = 0;
 let offsetY = 0;
 const scaleFactor = 1.1;
 
+let renderer, scene, camera, controls;
+let animationFrameId;
+let nodes3D = [];
+let connections3D = [];
+
 const levelColors = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
     '#F06292', '#AED581', '#FFD54F', '#4DB6AC', '#7986CB'
 ];
-
-// base_url = 'http://localhost:8080';
-// base_url = 'https://0590a1e7-61ab-402e-9e7d-60cfee9e3001.mock.pstmn.io';
 
 // 노드 그리기
 function drawNode(node) {
@@ -500,6 +506,8 @@ async function initializePages() {
 }
 
 async function loadSelectedPage(pageId) {
+    cleanupThree();
+
     nodes = [];
     connections = [];
 
@@ -575,7 +583,12 @@ async function loadSelectedPage(pageId) {
     offsetY = 0;
     scale = 1;
     
-    drawMindmap();
+    if (isView3D) {
+        initializeThree();
+    }
+    else{
+        drawMindmap();
+    }
     
 }
 
@@ -932,6 +945,85 @@ function resizeCanvas() {
     drawMindmap();
 }
 
+function animate() {
+    requestAnimationFrame( animate );
+    controls.update();
+	renderer.render( scene, camera );
+}
+
+function generateNodes3D(node) {
+    const geometry = new THREE.SphereGeometry(5, 32, 32);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    const sphere = new THREE.Mesh(geometry, material);
+    sphere.position.set(node.x, node.y, 0);
+    
+    nodes3D.push(sphere);
+}
+
+function generateConnections3D(conn) {
+    const points = [];
+    points.push(new THREE.Vector3(conn.start.x, conn.start.y, 0));
+    points.push(new THREE.Vector3(conn.end.x, conn.end.y, 0));
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+    const line = new THREE.Line(geometry, material);
+    
+    connections3D.push(line);
+}
+
+function initializeThree() {
+    if(!renderer){
+        console.log('initializing three.js');
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        renderer.setAnimationLoop( animate );
+
+        canvasContainer.appendChild(renderer.domElement);
+        
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+        controls = new OrbitControls(camera, renderer.domElement);
+
+        nodes.forEach(generateNodes3D);
+        connections.forEach(generateConnections3D);
+
+        nodes3D.forEach(node => scene.add(node));
+        connections3D.forEach(conn => scene.add(conn));
+        
+        camera.position.set(nodes[0].x, nodes[0].y, 100);
+        camera.lookAt(nodes[0].x, nodes[0].y, 0);
+
+        controls.update();
+
+        animate();
+    } else{
+        renderer.domElement.style.display = 'block';
+    }
+
+}
+
+function cleanupThree() {
+    if(renderer){
+        scene.traverse(obj => {
+            if (obj.isMesh) {
+                obj.geometry.dispose();
+                obj.material.dispose();
+            }
+            if (obj.isLine) {
+                obj.geometry.dispose();
+                obj.material.dispose();
+            }
+        });
+
+        renderer.domElement.remove();
+        controls.dispose();
+        
+        renderer = scene = camera = controls = null;
+        nodes3D = [];
+        connections3D = [];
+    }
+}
+
 function setupButtonListeners() {
     organizeBtn.addEventListener('click', () => {
         organizeNodes();
@@ -957,6 +1049,22 @@ function setupButtonListeners() {
     connectModeBtn.addEventListener('click', () => {
         isConnectMode = !isConnectMode;
         connectModeBtn.textContent = isConnectMode ? '일반 모드로 전환' : '연결 모드로 전환';
+    });
+
+    changeViewBtn.addEventListener('click', () => {
+        if(!isView3D){
+            canvas.style.display = 'none';
+            initializeThree();
+        } else{
+            canvas.style.display = 'block';
+            if(renderer){
+                renderer.domElement.style.display = 'none';
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
+
+        isView3D = !isView3D;
+        changeViewBtn.textContent = isView3D ? '2D 모드로 전환' : '3D 모드로 전환';
     });
 }
 
