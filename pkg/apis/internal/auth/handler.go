@@ -29,17 +29,25 @@ var (
 )
 
 type handler struct {
-	log logr.Logger
-	uu  UserUsecase
+	log               logr.Logger
+	uu                UserUsecase
+	redirectURLScheme string
 }
 
 func NewHandler(log logr.Logger, uu UserUsecase) (*handler, error) {
+	h := &handler{
+		log: log,
+		uu:  uu,
+	}
+
 	var err error
 	switch os.Getenv("APP_ENV") {
 	case "DEV", "dev", "development":
 		privKey, err = loadTestPrivateKey()
+		h.redirectURLScheme = "http://"
 	case "PROD", "prod", "production":
 		privKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		h.redirectURLScheme = "https://"
 	default:
 		return nil, errors.New("unknown environment")
 	}
@@ -47,10 +55,7 @@ func NewHandler(log logr.Logger, uu UserUsecase) (*handler, error) {
 		return nil, err
 	}
 
-	return &handler{
-		log: log,
-		uu:  uu,
-	}, nil
+	return h, nil
 }
 
 func (ah *handler) RegistRoute(mux *http.ServeMux) {
@@ -77,9 +82,12 @@ func (ah *handler) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 	oauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  "http://" + path.Join(r.Host, "/api/auth/google/callback"),
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
-		Endpoint:     google.Endpoint,
+		RedirectURL:  ah.redirectURLScheme + path.Join(r.Host, "/api/auth/google/callback"),
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.profile",
+			"https://www.googleapis.com/auth/userinfo.email",
+		},
+		Endpoint: google.Endpoint,
 	}
 	url := oauthConfig.AuthCodeURL(oauthStateString)
 	http.Redirect(w, r, url, http.StatusFound)
@@ -151,7 +159,7 @@ func HeaderHandler(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		claim := &Claims{}
-		token, err := jwt.ParseWithClaims(cookie.Value, claim, func(t *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(cookie.Value, claim, func(t *jwt.Token) (any, error) {
 			return privKey.Public(), nil
 		})
 		if err != nil {

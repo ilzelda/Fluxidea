@@ -1,5 +1,5 @@
 # Build stage
-FROM --platform=$BUILDPLATFORM golang:1.23 AS builder
+FROM golang:1.23 AS builder
 
 ARG BUILD_FLAGS
 
