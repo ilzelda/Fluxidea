@@ -725,6 +725,7 @@ async function loadSelectedPage(pageId) {
     console.log("[loadSelectedPage] nodes와 connections가 비어있습니다.")
   } else {
     generateGraphStructure()
+    nextNodeId = Math.max(...nodes.map((node) => node.id)) + 1
   }
 
   offsetX = 0
