@@ -6,6 +6,7 @@ const API_BASE_URL = '';
 const SAVE_BASE_URL = '/api/pages';
 const GET_BASE_URL = '/api/pages';
 const DELETE_BASE_URL = '/api/pages';
+const CREATE_BASE_URL = '/api/pages';
 
 // API 요청 함수
 export async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
@@ -100,14 +101,28 @@ export async function deleteData(page_id, options = {}) {
     }
 }
 
-export async function createPage(loggend_in){
+export async function createPage(logged_in){
     if (!logged_in) {
         const tempPage = localStorage.getItem("mindlink_temp_page")
         if (tempPage !== null) {
           showToast("로그인이 필요합니다.", "warning")
           return
+        } else {
+            newPage = [{ id: "temp", name: pageName, data: { nodes: [], connections: [] } }]
+            localStorage.setItem("mindlink_temp_page", JSON.stringify(newPage))
         }
-      }
+    }
+    
+    const pageName = prompt("새 페이지의 이름을 입력하세요:", "새 페이지")
+    if (pageName === null) return
+    else if (pageName === "") {
+        showToast("페이지 이름을 입력해주세요.", "warning")
+        return
+    }
 
+    showLoading(true)
 
+    let newPage
+    apiRequest(`${CREATE_BASE_URL}`, 'POST', { name: pageName })
+    
 }
