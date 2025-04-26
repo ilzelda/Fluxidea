@@ -611,6 +611,7 @@ async function initializePages() {
       } else {
         data = JSON.parse(data)
         console.log(typeof data)
+        
         console.log(data)
 
         response = { status: 200, json: () => Promise.resolve(data) }
