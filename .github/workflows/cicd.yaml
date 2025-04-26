@@ -1,0 +1,75 @@
+name: server-cicd
+
+run-name: ${{ github.triggering_actor }} runs ${{ github.workflow }}
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+  GCE_INSTANCE: ${{ secrets.GCE_INSTANCE }}
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCE_INSTANCE_ZONE: ${{ secrets.GCE_INSTANCE_ZONE }}
+  GCE_HOST_PATH: ${{ secrets.GCE_HOST_PATH }}
+  GCE_MOUNT_PATH: ${{ secrets.GCE_MOUNT_PATH }}
+
+jobs:
+  push-container-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write prod env file
+        run: |
+          touch config/prod.env
+          echo $ENV_FILE_CONTENT > config/prod.env
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Load Tags
+        run: |
+          git fetch --tags
+      - name: Get version
+        id: version
+        run: |
+          echo "version=$(git describe --tags --abbrev=0 | sed 's/^v//' 2> /dev/null || echo 'untagged')" >> $GITHUB_OUTPUT
+      - name: Login to Github container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/leebee-dev/fluxidea:${{ steps.version.outputs.version }}
+            ghcr.io/leebee-dev/fluxidea:latest
+          platforms: |
+            linux/amd64
+            linux/arm64
+  deploy-gcp:
+    needs: push-container-image
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - id: "auth"
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: "projects/89510231493/locations/global/workloadIdentityPools/fluxidea-pool/providers/github-provider"
+          service_account: "container-updater@mindlink-448307.iam.gserviceaccount.com"
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+      - name: Deploy to GCP
+        run: |
+          gcloud compute instances update-container "$GCE_INSTANCE" \
+          --project "$GCP_PROJECT" \
+          --zone "$GCE_INSTANCE_ZONE" \
+          --container-image "ghcr.io/leebee-dev/fluxidea:latest" \
+          --container-mount-host-path "host-path=$GCE_HOST_PATH,mount-path=$GCE_MOUNT_PATH"

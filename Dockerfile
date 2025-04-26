@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23 AS builder
+FROM golang:1.24 AS builder
 
 ARG BUILD_FLAGS
 
@@ -10,7 +10,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="${BUILD_FLAGS}" -o server -a cmd/main.go
 
 # Final stage
-FROM alpine:3.20
+FROM alpine:3.21
 
 WORKDIR /app
 
