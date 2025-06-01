@@ -2,5 +2,13 @@
     "server": {
         "port": "8080",
         "root_path": "static"
+    },
+    "db": {
+        "type": "postgres",
+        "postgres": {
+            "host": "localhost",
+            "port": 5432,
+            "dbname": "fluxidea-local"
+        }
     }
 }

@@ -35,8 +35,19 @@ type AppConfig struct {
 	Server *server.Config `json:"server"`
 }
 
-// TODO: DB 확장시 사용할 구성 미리 생성, 나중에 지워질 수 있음
-type DBConfig struct{}
+type DBConfig struct {
+	Type string `json:"type"`
+
+	Postgresql *PostgresConfig `json:"postgres,omitempty"`
+}
+
+func (dbCfg *DBConfig) GetConnString() string {
+	switch dbCfg.Type {
+	case "postgres":
+		return dbCfg.Postgresql.GetConnString()
+	}
+	return ""
+}
 
 // TODO: 로그 설정 확장시 사용할 구성 미리 생성, 나중에 지워질 수 있음
 type LogConfig struct{}
