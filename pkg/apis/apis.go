@@ -33,8 +33,7 @@ var (
 
 func setComponent(db *sql.DB) error {
 	pageRepo := prepo.NewPostgreSQLRepository(db, pageLogger)
-	userRepo := urepo.NewFileRepo(userFSRoot, userLogger)
-
+	userRepo := urepo.NewPostgreSQLRepository(db, userLogger)
 	userUsecase := user.NewUsecase(userLogger, userRepo)
 
 	var err error
