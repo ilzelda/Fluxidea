@@ -2,10 +2,10 @@ name: server-cicd
 
 run-name: ${{ github.triggering_actor }} runs ${{ github.workflow }}
 
-on:
-  push:
-    branches:
-      - master
+# on:
+#   push:
+#     branches:
+#       - master
 
 jobs:
   push-container-image:
@@ -14,10 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Write prod env file
         run: |
-          echo "APP_ENV=prod" >> config/prod.env
-          echo "CONFIG_FILE_PATH=./config/config.json" >> config/prod.env
-          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> config/prod.env
-          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> config/prod.env
+          echo "APP_ENV=prod" >> config/prod/.env
+          echo "CONFIG_FILE_PATH=./config/config.json" >> config/prod/.env
+          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> config/prod/.env
+          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> config/prod/.env
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -49,8 +49,8 @@ jobs:
           build-args: |
             BUILD_FLAGS=-X main.VERSION=${{ steps.metadata.outputs.version }} -X main.COMMIT=${{ steps.metadata.outputs.commit }} -X main.BUILD_DATE=${{ steps.metadata.outputs.build_date }}
           tags: |
-            ghcr.io/leebee-dev/fluxidea:${{ steps.image-version.outputs.version }}
-            ghcr.io/leebee-dev/fluxidea:latest
+            ghcr.io/libee725/fluxidea:${{ steps.image-version.outputs.version }}
+            ghcr.io/libee725/fluxidea:latest
           platforms: |
             linux/amd64
             linux/arm64
@@ -61,7 +61,7 @@ jobs:
       - name: Deploy to Render
         env:
           DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          IMAGE_URL: ghcr.io/leebee-dev/fluxidea:latest
+          IMAGE_URL: ghcr.io/libee725/fluxidea:latest
         run: |
           ENCODED_IMAGE_URL=$(python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ['IMAGE_URL'], safe=''))")
           curl --fail "${DEPLOY_HOOK_URL}&imgURL=${ENCODED_IMAGE_URL}"
