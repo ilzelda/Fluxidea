@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"runtime"
 
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 
 	"mindlink.io/mindlink/pkg/apis"
 	"mindlink.io/mindlink/pkg/config"
@@ -54,7 +56,13 @@ func main() {
 	}
 	SayHello()
 
-	mux, err := apis.SetupAPIs()
+	db, err := sql.Open(cfg.DB.Type, cfg.DB.GetConnString())
+	if err != nil {
+		logger.Error(err, "failed to db")
+	}
+	defer db.Close()
+
+	mux, err := apis.SetupAPIs(db)
 	if err != nil {
 		logger.Error(err, "Failed to setup mux")
 		os.Exit(1)

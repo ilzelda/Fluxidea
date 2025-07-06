@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"database/sql"
 	"net/http"
 
 	"mindlink.io/mindlink/pkg/apis/internal/auth"
@@ -28,13 +29,13 @@ var (
 	authLogger = log.Logger.WithName("AuthAPI")
 	pageLogger = log.Logger.WithName("PageAPI")
 	userLogger = log.Logger.WithName("UserAPI")
-
-	pageRepo    = prepo.NewFileRepo(pageFSRoot, pageLogger)
-	userRepo    = urepo.NewFileRepo(userFSRoot, userLogger)
-	userUsecase = user.NewUsecase(userLogger, userRepo)
 )
 
-func setComponent() error {
+func setComponent(db *sql.DB) error {
+	pageRepo := prepo.NewPostgreSQLRepository(db, pageLogger)
+	userRepo := urepo.NewPostgreSQLRepository(db, userLogger)
+	userUsecase := user.NewUsecase(userLogger, userRepo)
+
 	var err error
 	authAPI, err = auth.NewHandler(authLogger, userUsecase)
 	if err != nil {
@@ -45,8 +46,8 @@ func setComponent() error {
 	return nil
 }
 
-func SetupAPIs() (*http.ServeMux, error) {
-	if err := setComponent(); err != nil {
+func SetupAPIs(db *sql.DB) (*http.ServeMux, error) {
+	if err := setComponent(db); err != nil {
 		return nil, err
 	}
 	mux := http.NewServeMux()
