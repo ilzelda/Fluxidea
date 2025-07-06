@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24 AS builder
+FROM golang:1.23-alpine AS builder
 
 ARG BUILD_FLAGS
 
@@ -12,13 +12,15 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="${BUILD_F
 # Final stage
 FROM alpine:3.21
 
+ARG TYPE
+
 WORKDIR /app
 
 COPY --from=builder /app/server ./app
 COPY --from=builder /app/static ./static
 
-COPY --from=builder /app/config/config.prod.json ./config/config.json
-COPY --from=builder /app/config/prod.env ./config/.env
+COPY --from=builder /app/config/${TYPE}/config.json ./config/config.json
+COPY --from=builder /app/config/${TYPE}/.env ./config/.env
 
 EXPOSE 80
 EXPOSE 443

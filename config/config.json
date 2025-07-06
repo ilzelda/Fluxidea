@@ -1,14 +1,17 @@
 {
     "server": {
-        "port": "8080",
-        "root_path": "static"
+        "port": "", // "8080",
+        "root_path": "" // "static"
     },
     "db": {
-        "type": "postgres",
+        "type": "", // "postgres",
         "postgres": {
-            "host": "localhost",
-            "port": 5432,
-            "dbname": "fluxidea-local"
+            "host": "", // "localhost",
+            "port": "", // 5432,
+            "dbname": "", // "fluxidea-local"
+            "user": "", // "username"
+            "password": "", // "adminpassword"
+            "sslmode": "" // "disabled"
         }
     }
 }

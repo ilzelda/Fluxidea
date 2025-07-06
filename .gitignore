@@ -3,4 +3,8 @@ data/
 bin/
 .vscode/
 *.env
+!config/.env
 *.pem
+
+
+**/prod/*
