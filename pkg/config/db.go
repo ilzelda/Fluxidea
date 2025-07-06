@@ -11,6 +11,7 @@ type PostgresConfig struct {
 	DBName   string `json:"dbname"`
 	User     string `json:"user,omitempty"`
 	Password string `json:"password,omitempty"`
+	SSLMode  string `json:"sslmode,omitempty"`
 }
 
 func (pcfg *PostgresConfig) GetConnString() string {
@@ -34,8 +35,10 @@ func (pcfg *PostgresConfig) GetConnString() string {
 		builder.WriteString(pcfg.Password)
 	}
 
-	// TODO: Test 중 추가 일단 넣어 놓음. 나중에 확인 후 처리
-	builder.WriteString(" sslmode=disable")
+	if pcfg.SSLMode != "" {
+		builder.WriteString(" sslmode=")
+		builder.WriteString(pcfg.SSLMode)
+	}
 
 	return builder.String()
 }
