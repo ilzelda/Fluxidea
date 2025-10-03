@@ -41,7 +41,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
   } catch (error) {
     if (!options.suppressErrors) {
       console.error('API 요청 오류:', error);
-      showNotification('API 요청 중 오류가 발생했습니다', 'error');
+      showToast('API 요청 중 오류가 발생했습니다', 'error');
     }
     throw error;
   }
@@ -70,18 +70,27 @@ export async function saveData(nodes, connections, page_id, options = {}) {
     localStorage.setItem("mindlink_temp_page", JSON.stringify(tempData))
     showLoading(false)
     showToast("그래프가 로컬에 저장되었습니다")
+    return tempData[0].data;
   } else{
-    const result = apiRequest(`${SAVE_BASE_URL}/${page_id}`, "PUT", data, options);
+    const result = await apiRequest(`${SAVE_BASE_URL}/${page_id}`, "PUT", data, options);
+    return result;
   }
 }
 
 // 데이터 갖고오기
 export async function getData(logged_in, page_id, options = {}) {
+    let url = GET_BASE_URL;
+    if (page_id) {
+        url = `${GET_BASE_URL}/${page_id}`;
+    }
+
     if (!logged_in) {
         const tempPage = localStorage.getItem("mindlink_temp_page")
-        data = JSON.parse(tempPage)[0].data
+        const data = JSON.parse(tempPage)[0].data
+        return data;
     } else {
-        data = apiRequest(`${GET_BASE_URL}/${page_id}`, 'GET', null, options);
+        const data = await apiRequest(url, 'GET', null, options);
+        return data;
     }
 
     return data
@@ -91,13 +100,14 @@ export async function getData(logged_in, page_id, options = {}) {
 export async function deleteData(page_id, options = {}) {
     if (confirm("정말로 이 페이지를 삭제하시겠습니까?")) {
         showLoading(true)
-        result = apiRequest(`${DELETE_BASE_URL}/${page_id}`, 'DELETE', null, options);
+        const result = await apiRequest(`${DELETE_BASE_URL}/${page_id}`, 'DELETE', null, options);
 
         if (result.success_ok) {
             showToast("페이지가 삭제되었습니다", "success")
         } else {
             showToast("페이지 삭제에 실패했습니다", "error")
         }
+        return result;
     }
 }
 
@@ -108,8 +118,9 @@ export async function createPage(logged_in){
           showToast("로그인이 필요합니다.", "warning")
           return
         } else {
-            newPage = [{ id: "temp", name: pageName, data: { nodes: [], connections: [] } }]
+            const newPage = [{ id: "temp", name: pageName, data: { nodes: [], connections: [] } }]
             localStorage.setItem("mindlink_temp_page", JSON.stringify(newPage))
+            return newPage[0];
         }
     }
     
@@ -122,7 +133,7 @@ export async function createPage(logged_in){
 
     showLoading(true)
 
-    let newPage
-    apiRequest(`${CREATE_BASE_URL}`, 'POST', { name: pageName })
+    let newPage = await apiRequest(`${CREATE_BASE_URL}`, 'POST', { name: pageName })
+    return newPage;
     
 }
