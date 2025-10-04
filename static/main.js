@@ -427,7 +427,7 @@ class MindLinkApp {
 
         if (data.nodes && data.connections) {
             this.generateGraphStructure();
-            this.nextNodeId = Math.max(...this.nodes.map((node) => node.id)) + 1;
+            this.nextNodeId = this.nodes.length > 0 ? Math.max(...this.nodes.map(node => node.id)) + 1 : 0;
         }
 
         this.offsetX = 0;

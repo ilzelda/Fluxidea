@@ -85,15 +85,23 @@ export async function getData(logged_in, page_id, options = {}) {
     }
 
     if (!logged_in) {
-        const tempPage = localStorage.getItem("mindlink_temp_page")
-        const data = JSON.parse(tempPage)[0].data
-        return data;
+        const tempPagesJSON = localStorage.getItem("mindlink_temp_page");
+        if (!tempPagesJSON) {
+            return page_id ? null : [];
+        }
+
+        const tempPages = JSON.parse(tempPagesJSON);
+
+        if (page_id) {
+            const page = tempPages.find(p => p.id === page_id);
+            return page ? page.data : null;
+        } else {
+            return tempPages.map(p => ({ id: p.id, name: p.name }));
+        }
     } else {
         const data = await apiRequest(url, 'GET', null, options);
         return data;
     }
-
-    return data
 }
 
 // 데이터 삭제
@@ -118,6 +126,7 @@ export async function createPage(logged_in){
           showToast("로그인이 필요합니다.", "warning")
           return
         } else {
+            const pageName = "기본 페이지"
             const newPage = [{ id: "temp", name: pageName, data: { nodes: [], connections: [] } }]
             localStorage.setItem("mindlink_temp_page", JSON.stringify(newPage))
             return newPage[0];
