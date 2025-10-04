@@ -462,10 +462,10 @@ export function toggleConnectMode(isConnectMode) {
   }
 }
 
-export function toggleViewMode(drawMindmapCallback) {
+export function toggleViewMode(drawMindmapCallback, nodes, connections) {
     if (!isView3D) {
         canvas.style.display = "none"
-        initializeThree()
+        initializeThree(nodes, connections)
         changeViewBtn.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
         changeViewBtnMobile.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
         showToast("3D 모드로 전환되었습니다.")

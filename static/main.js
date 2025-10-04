@@ -488,7 +488,7 @@ class MindLinkApp {
     }
 
     toggleViewMode() {
-        this.ui.toggleViewMode(() => this.drawMindmap());
+        this.ui.toggleViewMode(() => this.drawMindmap(), this.nodes, this.connections);
     }
     
     selectParentNode() {
