@@ -32,7 +32,7 @@ class MindLinkApp {
         this.logged_in = initAuth();
         
         if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            this.ui.isDarkMode = true;
+            this.ui.setDarkMode(true);
             document.body.classList.add("dark");
             this.ui.themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
         }

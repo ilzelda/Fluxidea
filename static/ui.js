@@ -57,6 +57,10 @@ const levelColors = [
   "#7986CB",
 ]
 
+export function setDarkMode(value) {
+  isDarkMode = value
+}
+
 // 노드 그리기
 export function drawNode(node, selectedNode) {
   const maxWidth = 150
