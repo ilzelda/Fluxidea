@@ -51,6 +51,7 @@ let dragPlane = null
 let dragOffset = null
 let previewLine = null
 let wasDragging3D = false
+let connectTargetHintShown3D = false
 
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
@@ -73,11 +74,12 @@ export function setDarkMode(value) {
 }
 
 // 노드 그리기
-export function drawNode(node, selectedNode) {
+export function drawNode(node, selectedNode, highlightedConnectTarget = null) {
   const maxWidth = 150
   const padding = 10
   const lineHeight = 18
   const borderRadius = 8
+  const isConnectTarget = node === highlightedConnectTarget
 
   ctx.font = "14px Inter, sans-serif"
 
@@ -114,7 +116,10 @@ export function drawNode(node, selectedNode) {
   }
 
   // 선택된 노드 강조
-  if (node === selectedNode) {
+  if (isConnectTarget) {
+    ctx.strokeStyle = "#10b981"
+    ctx.lineWidth = 3
+  } else if (node === selectedNode) {
     ctx.strokeStyle = "#4f46e5"
     ctx.lineWidth = 2
   } else {
@@ -123,8 +128,8 @@ export function drawNode(node, selectedNode) {
   }
 
   // 그림자 효과
-  ctx.shadowColor = "rgba(0, 0, 0, 0.1)"
-  ctx.shadowBlur = 5
+  ctx.shadowColor = isConnectTarget ? "rgba(16, 185, 129, 0.35)" : "rgba(0, 0, 0, 0.1)"
+  ctx.shadowBlur = isConnectTarget ? 12 : 5
   ctx.shadowOffsetX = 0
   ctx.shadowOffsetY = 2
 
@@ -272,7 +277,16 @@ export function drawConnection(conn, selectedConnection) {
 }
 
 // 마인드맵 그리기
-export function drawMindmap(nodes, connections, selectedNode, selectedConnection, offsetX, offsetY, scale) {
+export function drawMindmap(
+  nodes,
+  connections,
+  selectedNode,
+  selectedConnection,
+  highlightedConnectTarget,
+  offsetX,
+  offsetY,
+  scale,
+) {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.save()
   ctx.translate(offsetX, offsetY)
@@ -310,16 +324,25 @@ export function drawMindmap(nodes, connections, selectedNode, selectedConnection
   connections.forEach(conn => drawConnection(conn, selectedConnection))
 
   // 그 다음 노드 그리기
-  nodes.forEach(node => drawNode(node, selectedNode))
+  nodes.forEach(node => drawNode(node, selectedNode, highlightedConnectTarget))
 
   ctx.restore()
 }
 
-export function resizeCanvas(nodes, connections, selectedNode, selectedConnection, offsetX, offsetY, scale) {
+export function resizeCanvas(
+  nodes,
+  connections,
+  selectedNode,
+  selectedConnection,
+  highlightedConnectTarget,
+  offsetX,
+  offsetY,
+  scale,
+) {
   const containerRect = canvasContainer.getBoundingClientRect()
   canvas.width = containerRect.width
   canvas.height = containerRect.height
-  drawMindmap(nodes, connections, selectedNode, selectedConnection, offsetX, offsetY, scale)
+  drawMindmap(nodes, connections, selectedNode, selectedConnection, highlightedConnectTarget, offsetX, offsetY, scale)
 }
 
 function animate() {
@@ -380,6 +403,7 @@ function setRandomNodeDepths(nodes, depthRange) {
 }
 
 function getNodeColor(node, isSelected = false) {
+  if (activeApp?.highlightedConnectTarget === node) return new THREE.Color(0x10b981)
   if (isSelected) return new THREE.Color(0x4f46e5)
   return node.level !== undefined
     ? new THREE.Color(levelColors[node.level % levelColors.length])
@@ -547,6 +571,8 @@ function handleThreePointerDown(event) {
 
     if (activeApp.isConnectMode) {
       activeConnectNode = clickedNode
+      activeApp.highlightedConnectTarget = null
+      connectTargetHintShown3D = false
       updatePreviewLine(clickedNode, event)
     } else {
       activeDragNode = clickedNode
@@ -580,6 +606,7 @@ function handleThreePointerDown(event) {
 
   activeApp.selectedNode = null
   activeApp.selectedConnection = null
+  activeApp.highlightedConnectTarget = null
   refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
 }
 
@@ -589,8 +616,21 @@ function handleThreePointerMove(event) {
   if (activeConnectNode) {
     event.preventDefault()
     event.stopImmediatePropagation()
+    const targetNode = findNodeFromEvent(event)
+    const nextTargetNode = targetNode && targetNode !== activeConnectNode ? targetNode : null
+
+    if (activeApp.highlightedConnectTarget !== nextTargetNode) {
+      activeApp.highlightedConnectTarget = nextTargetNode
+      refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+    }
+
+    if (nextTargetNode && !connectTargetHintShown3D) {
+      activeApp.ui.showToast("놓으면 연결됩니다.", "info")
+      connectTargetHintShown3D = true
+    }
+
     updatePreviewLine(activeConnectNode, event)
-    renderer.domElement.style.cursor = "crosshair"
+    renderer.domElement.style.cursor = nextTargetNode ? "copy" : "crosshair"
     return
   }
 
@@ -624,7 +664,9 @@ function handleThreePointerUp(event) {
       activeApp.createConnection(activeConnectNode, targetNode)
     }
     activeApp.selectedNode = null
+    activeApp.highlightedConnectTarget = null
     activeConnectNode = null
+    connectTargetHintShown3D = false
     clearPreviewLine()
     refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
   }
@@ -778,6 +820,7 @@ export function cleanupThree() {
     dragPlane = null
     dragOffset = null
     previewLine = null
+    connectTargetHintShown3D = false
   }
 }
 

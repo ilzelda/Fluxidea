@@ -4,6 +4,8 @@ import { drawMindmap } from './ui.js';
 let isDragging = false;
 let startDragX = 0;
 let startDragY = 0;
+let activeInlineEditor = null;
+let connectTargetHintShown = false;
 
 export function setupButtonListeners(app) {
     // Main toolbar buttons
@@ -13,7 +15,12 @@ export function setupButtonListeners(app) {
     app.ui.testBtn.addEventListener("click", () => app.generateTestGraph());
     app.ui.saveBtn.addEventListener("click", () => app.saveGraph());
     app.ui.newNodeBtn.addEventListener("click", () => {
-        app.createNode();
+        const newNode = app.createNode();
+        if (newNode) {
+            app.selectedNode = newNode;
+            app.selectedConnection = null;
+            beginInlineEdit(app, "node", newNode);
+        }
         app.drawMindmap();
     });
     app.ui.connectModeBtn.addEventListener("click", () => app.toggleConnectMode());
@@ -26,7 +33,12 @@ export function setupButtonListeners(app) {
     app.ui.testBtnMobile.addEventListener("click", () => app.generateTestGraph());
     app.ui.saveBtnMobile.addEventListener("click", () => app.saveGraph());
     app.ui.newNodeBtnMobile.addEventListener("click", () => {
-        app.createNode();
+        const newNode = app.createNode();
+        if (newNode) {
+            app.selectedNode = newNode;
+            app.selectedConnection = null;
+            beginInlineEdit(app, "node", newNode);
+        }
         app.drawMindmap();
     });
     app.ui.connectModeBtnMobile.addEventListener("click", () => app.toggleConnectMode());
@@ -58,6 +70,7 @@ export function setupCanvasListeners(app) {
     app.ui.canvas.addEventListener("mousedown", (e) => onMouseDown(e, app));
     app.ui.canvas.addEventListener("mousemove", (e) => onMouseMove(e, app));
     app.ui.canvas.addEventListener("mouseup", (e) => onMouseUp(e, app));
+    app.ui.canvas.addEventListener("dblclick", (e) => onCanvasDoubleClick(e, app));
     app.ui.canvas.addEventListener("wheel", (e) => onMouseWheel(e, app));
 
     // Touch events
@@ -88,8 +101,145 @@ export function setupCanvasListeners(app) {
     });
 }
 
+function findNodeAt(app, x, y) {
+    return app.nodes.find(
+        (node) =>
+            x >= node.x - node.width / 2 &&
+            x <= node.x + node.width / 2 &&
+            y >= node.y - node.height / 2 &&
+            y <= node.y + node.height / 2,
+    );
+}
+
+function findConnectionAt(app, x, y) {
+    return app.connections.find((conn) => app.isClickOnConnection(x, y, conn));
+}
+
+function findConnectTargetAt(app, x, y, sourceNode) {
+    const targetNode = findNodeAt(app, x, y);
+    return targetNode && targetNode !== sourceNode ? targetNode : null;
+}
+
+function isEditingElement(element) {
+    return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element?.isContentEditable;
+}
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function getScreenPosition(app, x, y) {
+    return {
+        x: x * app.scale + app.offsetX,
+        y: y * app.scale + app.offsetY,
+    };
+}
+
+function getConnectionLabelPosition(conn) {
+    const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
+    const startY = conn.start.y;
+    const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
+    const endY = conn.end.y;
+
+    return {
+        x: (startX + endX) / 2,
+        y: (startY + endY) / 2 - 8,
+    };
+}
+
+function finishInlineEdit(commit = true) {
+    if (!activeInlineEditor) return;
+
+    const { app, input, target, type, previousValue } = activeInlineEditor;
+    const nextValue = input.value;
+    activeInlineEditor = null;
+    input.remove();
+
+    if (!commit) {
+        if (type === "node") {
+            target.text = previousValue;
+            app.calculateNodeSize(target);
+        } else {
+            target.description = previousValue;
+        }
+        app.drawMindmap();
+        return;
+    }
+
+    if (type === "node" && !app.updateNodeText(target, nextValue)) {
+        target.text = previousValue;
+        app.calculateNodeSize(target);
+        app.drawMindmap();
+        return;
+    }
+
+    if (type === "connection") {
+        app.updateConnectionDescription(target, nextValue);
+    }
+}
+
+function beginInlineEdit(app, type, target) {
+    finishInlineEdit(true);
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = `inline-editor inline-editor-${type}`;
+    input.value = type === "node" ? target.text : target.description || "";
+    input.placeholder = type === "node" ? "노드 텍스트" : "연결 설명";
+
+    const containerWidth = app.ui.canvasContainer.clientWidth;
+    const containerHeight = app.ui.canvasContainer.clientHeight;
+    let screenPosition;
+    let width;
+    let height;
+
+    if (type === "node") {
+        screenPosition = getScreenPosition(app, target.x, target.y);
+        width = clamp((target.width || 120) * app.scale + 24, 120, 360);
+        height = clamp((target.height || 40) * app.scale + 10, 36, 96);
+    } else {
+        const labelPosition = getConnectionLabelPosition(target);
+        screenPosition = getScreenPosition(app, labelPosition.x, labelPosition.y);
+        width = clamp((input.value.length || input.placeholder.length) * 9 + 36, 120, 280);
+        height = 34;
+    }
+
+    input.style.width = `${width}px`;
+    input.style.height = `${height}px`;
+    input.style.left = `${clamp(screenPosition.x - width / 2, 8, Math.max(8, containerWidth - width - 8))}px`;
+    input.style.top = `${clamp(screenPosition.y - height / 2, 8, Math.max(8, containerHeight - height - 8))}px`;
+
+    activeInlineEditor = {
+        app,
+        input,
+        target,
+        type,
+        previousValue: input.value,
+    };
+
+    input.addEventListener("blur", () => finishInlineEdit(true));
+    input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+            e.preventDefault();
+            finishInlineEdit(true);
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            finishInlineEdit(false);
+        }
+    });
+
+    app.ui.canvasContainer.appendChild(input);
+    requestAnimationFrame(() => {
+        input.focus();
+        input.select();
+    });
+}
+
 export function setupKeyboardListeners(app) {
     window.addEventListener("keydown", (e) => {
+        if (isEditingElement(e.target)) return;
+
         if (app.selectedNode) {
             if (e.key === "Delete" || e.key === "Backspace") {
                 e.preventDefault();
@@ -105,11 +255,16 @@ export function setupKeyboardListeners(app) {
                     app.selectParentNode();
                 } else {
                     e.preventDefault();
-                    const newNode = app.createNode(app.selectedNode.x + app.ui.canvas.width * 0.1, app.selectedNode.y);
+                    const sourceNode = app.selectedNode;
+                    const newNode = app.createNode(sourceNode.x + app.ui.canvas.width * 0.1, sourceNode.y);
                     if (newNode) {
-                        app.createConnection(app.selectedNode, newNode);
+                        app.createConnection(sourceNode, newNode);
                         app.selectedNode = newNode;
+                        app.selectedConnection = null;
+                        app.drawMindmap();
+                        beginInlineEdit(app, "node", newNode);
                     }
+                    return;
                 }
             }
 
@@ -118,8 +273,16 @@ export function setupKeyboardListeners(app) {
             } else if (e.key === "ArrowDown") {
                 // Handle arrow navigation if needed
             } else if (e.key === "Enter") {
-                // Handle enter key if needed
+                e.preventDefault();
+                beginInlineEdit(app, "node", app.selectedNode);
+                return;
             }
+        }
+
+        if (app.selectedConnection && e.key === "Enter") {
+            e.preventDefault();
+            beginInlineEdit(app, "connection", app.selectedConnection);
+            return;
         }
 
         if (app.selectedConnection && (e.key === "Delete" || e.key === "Backspace")) {
@@ -135,6 +298,8 @@ export function setupKeyboardListeners(app) {
 }
 
 function onMouseDown(e, app) {
+    finishInlineEdit(true);
+
     const rect = app.ui.canvas.getBoundingClientRect();
     const canvasX = e.clientX - rect.left;
     const canvasY = e.clientY - rect.top;
@@ -161,17 +326,13 @@ function onMouseDown(e, app) {
         }
     }
 
-    const clickedNode = app.nodes.find(
-        (node) =>
-            x >= node.x - node.width / 2 &&
-            x <= node.x + node.width / 2 &&
-            y >= node.y - node.height / 2 &&
-            y <= node.y + node.height / 2,
-    );
+    const clickedNode = findNodeAt(app, x, y);
 
     if (clickedNode) {
         if (app.isConnectMode) {
             app.selectedNode = clickedNode;
+            app.highlightedConnectTarget = null;
+            connectTargetHintShown = false;
             isDragging = true;
             app.ui.canvas.style.cursor = "crosshair";
         } else {
@@ -185,7 +346,7 @@ function onMouseDown(e, app) {
         }
         app.selectedConnection = null;
     } else {
-        const clickedConnection = app.connections.find((conn) => app.isClickOnConnection(x, y, conn));
+        const clickedConnection = findConnectionAt(app, x, y);
         if (clickedConnection) {
             if (app.selectedConnection === clickedConnection) {
                 app.selectedConnection = null;
@@ -205,14 +366,59 @@ function onMouseDown(e, app) {
     app.drawMindmap();
 }
 
+function onCanvasDoubleClick(e, app) {
+    if (app.isConnectMode || app.ui.isView3D) return;
+
+    const rect = app.ui.canvas.getBoundingClientRect();
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+    const { x, y } = app.getRealCoordinates(canvasX, canvasY);
+
+    const clickedNode = findNodeAt(app, x, y);
+    if (clickedNode) {
+        app.selectedNode = clickedNode;
+        app.selectedConnection = null;
+        app.drawMindmap();
+        beginInlineEdit(app, "node", clickedNode);
+        return;
+    }
+
+    const clickedConnection = findConnectionAt(app, x, y);
+    if (clickedConnection) {
+        app.selectedNode = null;
+        app.selectedConnection = clickedConnection;
+        app.drawMindmap();
+        beginInlineEdit(app, "connection", clickedConnection);
+        return;
+    }
+
+    const newNode = app.createNode(x, y);
+    if (!newNode) return;
+
+    app.selectedNode = newNode;
+    app.selectedConnection = null;
+    app.drawMindmap();
+    beginInlineEdit(app, "node", newNode);
+}
+
 function onMouseMove(e, app) {
     if (!isDragging) return;
 
     const rect = app.ui.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+    const { x, y } = app.getRealCoordinates(canvasX, canvasY);
 
     if (app.isConnectMode && app.selectedNode) {
+        const targetNode = findConnectTargetAt(app, x, y, app.selectedNode);
+        app.highlightedConnectTarget = targetNode;
+        app.ui.canvas.style.cursor = targetNode ? "copy" : "crosshair";
+
+        if (targetNode && !connectTargetHintShown) {
+            app.ui.showToast("놓으면 연결됩니다.", "info");
+            connectTargetHintShown = true;
+        }
+
         app.drawMindmap();
 
         const startX = app.selectedNode.x + (x > app.selectedNode.x ? app.selectedNode.width / 2 : -app.selectedNode.width / 2);
@@ -236,8 +442,8 @@ function onMouseMove(e, app) {
         app.ui.ctx.setLineDash([]);
         app.ui.ctx.restore();
     } else if (app.selectedNode) {
-        app.selectedNode.x = (x - app.offsetX) / app.scale;
-        app.selectedNode.y = (y - app.offsetY) / app.scale;
+        app.selectedNode.x = x;
+        app.selectedNode.y = y;
         app.drawMindmap();
     } else {
         app.offsetX = e.offsetX - startDragX;
@@ -248,6 +454,7 @@ function onMouseMove(e, app) {
 
 function onMouseUp(e, app) {
     if (!isDragging) return;
+    let connectionToEdit = null;
 
     const rect = app.ui.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -255,24 +462,24 @@ function onMouseUp(e, app) {
 
     if (app.isConnectMode && app.selectedNode) {
         const { x: realX, y: realY } = app.getRealCoordinates(x, y);
-        const targetNode = app.nodes.find(
-            (node) =>
-                node !== app.selectedNode &&
-                realX >= node.x - node.width / 2 &&
-                realX <= node.x + node.width / 2 &&
-                realY >= node.y - node.height / 2 &&
-                realY <= node.y + node.height / 2,
-        );
+        const targetNode = findConnectTargetAt(app, realX, realY, app.selectedNode);
 
         if (targetNode) {
-            app.createConnection(app.selectedNode, targetNode);
+            connectionToEdit = app.createConnection(app.selectedNode, targetNode);
+            app.selectedConnection = connectionToEdit;
         }
         app.selectedNode = null;
+        app.highlightedConnectTarget = null;
+        connectTargetHintShown = false;
     }
 
     isDragging = false;
     app.ui.canvas.style.cursor = "default";
     app.drawMindmap();
+
+    if (connectionToEdit) {
+        beginInlineEdit(app, "connection", connectionToEdit);
+    }
 }
 
 function onMouseWheel(e, app) {

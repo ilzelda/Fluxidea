@@ -17,6 +17,7 @@ class MindLinkApp {
         this.isConnectMode = false;
         this.selectedNode = null;
         this.selectedConnection = null;
+        this.highlightedConnectTarget = null;
 
         this.scale = 1;
         this.offsetX = 0;
@@ -54,7 +55,16 @@ class MindLinkApp {
             return;
         }
 
-        this.ui.drawMindmap(this.nodes, this.connections, this.selectedNode, this.selectedConnection, this.offsetX, this.offsetY, this.scale);
+        this.ui.drawMindmap(
+            this.nodes,
+            this.connections,
+            this.selectedNode,
+            this.selectedConnection,
+            this.highlightedConnectTarget,
+            this.offsetX,
+            this.offsetY,
+            this.scale,
+        );
     }
 
     resizeCanvas() {
@@ -63,7 +73,16 @@ class MindLinkApp {
             return;
         }
 
-        this.ui.resizeCanvas(this.nodes, this.connections, this.selectedNode, this.selectedConnection, this.offsetX, this.offsetY, this.scale);
+        this.ui.resizeCanvas(
+            this.nodes,
+            this.connections,
+            this.selectedNode,
+            this.selectedConnection,
+            this.highlightedConnectTarget,
+            this.offsetX,
+            this.offsetY,
+            this.scale,
+        );
     }
 
     getRealCoordinates(mouseX, mouseY) {
@@ -101,13 +120,8 @@ class MindLinkApp {
         return minDistance < 10;
     }
 
-    createNode(x, y) {
-        const text = prompt("노드 텍스트를 입력하세요:", "새 노드");
-        if (text === null) return;
-        else if (text === "") {
-            this.ui.showToast("노드 텍스트를 입력해주세요.", "warning");
-            return;
-        }
+    createNode(x, y, text = "새 노드") {
+        const nodeText = String(text ?? "새 노드").trim() || "새 노드";
 
         if (x == null) {
             x = Math.random() * (this.ui.canvas.width - 40) + 20;
@@ -120,7 +134,7 @@ class MindLinkApp {
             id: this.nextNodeId++,
             x,
             y,
-            text,
+            text: nodeText,
         };
 
         this.calculateNodeSize(node);
@@ -129,29 +143,47 @@ class MindLinkApp {
         return node;
     }
 
+    updateNodeText(node, text) {
+        const nextText = String(text ?? "").trim();
+        if (!nextText) {
+            this.ui.showToast("노드 텍스트를 입력해주세요.", "warning");
+            return false;
+        }
+
+        node.text = nextText;
+        this.calculateNodeSize(node);
+        this.drawMindmap();
+        return true;
+    }
+
     deleteNode(node) {
         this.connections = this.connections.filter((conn) => conn.start !== node && conn.end !== node);
         this.nodes = this.nodes.filter((n) => n !== node);
         this.selectedNode = null;
+        if (this.highlightedConnectTarget === node) {
+            this.highlightedConnectTarget = null;
+        }
         this.drawMindmap();
         this.ui.showToast("노드가 삭제되었습니다");
     }
 
-    createConnection(start, end) {
-        const description = prompt("연결선의 설명을 입력하세요:", "연결선");
-        if (description === null) return;
-        else if (description === "") {
-            this.ui.showToast("연결선 설명을 입력해주세요.", "warning");
-            return;
-        }
-
-        this.connections.push({
+    createConnection(start, end, description = "") {
+        const connection = {
             start: start,
             end: end,
-            description: description,
-        });
+            description: String(description ?? "").trim(),
+        };
+
+        this.connections.push(connection);
         this.generateGraphStructure();
         this.ui.showToast("연결선이 생성되었습니다");
+        return connection;
+    }
+
+    updateConnectionDescription(connection, description) {
+        connection.description = String(description ?? "").trim();
+        this.drawMindmap();
+        return true;
     }
 
     deleteConnection(connection) {
@@ -306,6 +338,7 @@ class MindLinkApp {
         setTimeout(() => {
             this.nodes = [];
             this.connections = [];
+            this.highlightedConnectTarget = null;
             this.nextNodeId = 0;
 
             const nodeCount = 20;
@@ -398,6 +431,7 @@ class MindLinkApp {
 
         this.nodes = [];
         this.connections = [];
+        this.highlightedConnectTarget = null;
 
         let data = await this.api.getData(this.logged_in, pageId);
 
@@ -494,6 +528,10 @@ class MindLinkApp {
 
     toggleConnectMode() {
         this.isConnectMode = !this.isConnectMode;
+        if (!this.isConnectMode) {
+            this.highlightedConnectTarget = null;
+            this.drawMindmap();
+        }
         this.ui.toggleConnectMode(this.isConnectMode);
     }
 
