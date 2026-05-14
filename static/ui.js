@@ -37,13 +37,23 @@ export const toolbarDropdownBtn = document.getElementById("toolbarDropdownBtn")
 export const toolbarDropdownContent = document.getElementById("toolbarDropdownContent")
 
 export let isDarkMode = false
-let isView3D = false
+export let isView3D = false
 
 let renderer, scene, camera, controls
 let animationFrameId
 let nodes3D = []
 let connections3D = []
 let nodeDepths = new Map()
+let activeApp = null
+let activeDragNode = null
+let activeConnectNode = null
+let dragPlane = null
+let dragOffset = null
+let previewLine = null
+let wasDragging3D = false
+
+const raycaster = new THREE.Raycaster()
+const pointer = new THREE.Vector2()
 
 const levelColors = [
   "#FF6B6B",
@@ -362,24 +372,29 @@ function getGraphViewState(nodes) {
 }
 
 function setRandomNodeDepths(nodes, depthRange) {
-  nodeDepths = new Map()
   nodes.forEach((node) => {
-    nodeDepths.set(node.id, (Math.random() - 0.5) * depthRange)
+    if (!nodeDepths.has(node.id)) {
+      nodeDepths.set(node.id, (Math.random() - 0.5) * depthRange)
+    }
   })
+}
+
+function getNodeColor(node, isSelected = false) {
+  if (isSelected) return new THREE.Color(0x4f46e5)
+  return node.level !== undefined
+    ? new THREE.Color(levelColors[node.level % levelColors.length])
+    : new THREE.Color(isDarkMode ? 0x1e293b : 0xffffff)
 }
 
 function generateNodes3D(node) {
   const geometry = new THREE.SphereGeometry(5, 32, 32)
   const material = new THREE.MeshBasicMaterial({
-    color:
-      node.level !== undefined
-        ? new THREE.Color(levelColors[node.level % levelColors.length])
-        : new THREE.Color(isDarkMode ? 0x1e293b : 0xffffff),
+    color: getNodeColor(node, activeApp?.selectedNode === node),
   })
   const sphere = new THREE.Mesh(geometry, material)
   const z = nodeDepths.get(node.id) ?? 0
   sphere.position.set(node.x, node.y, z)
-  sphere.userData = { id: node.id, text: node.text }
+  sphere.userData = { id: node.id, text: node.text, node }
 
   // 노드 텍스트 추가
   const canvas = document.createElement("canvas")
@@ -420,23 +435,282 @@ function generateConnections3D(conn) {
   const points = curve.getPoints(50)
   const geometry = new THREE.BufferGeometry().setFromPoints(points)
   const material = new THREE.LineBasicMaterial({
-    color: isDarkMode ? 0x94a3b8 : 0x64748b,
+    color: activeApp?.selectedConnection === conn ? 0x4f46e5 : isDarkMode ? 0x94a3b8 : 0x64748b,
     linewidth: 2,
   })
   const line = new THREE.Line(geometry, material)
+  line.userData = { connection: conn }
 
   connections3D.push(line)
 }
 
-export function initializeThree(nodes, connections) {
+function setPointerFromEvent(event) {
+  const rect = renderer.domElement.getBoundingClientRect()
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  raycaster.setFromCamera(pointer, camera)
+}
+
+function findNodeFromEvent(event) {
+  if (!renderer || !camera) return null
+
+  setPointerFromEvent(event)
+  const intersects = raycaster.intersectObjects(nodes3D, false)
+  return intersects.length > 0 ? intersects[0].object.userData.node : null
+}
+
+function findConnectionFromEvent(event) {
+  if (!renderer || !camera) return null
+
+  setPointerFromEvent(event)
+  raycaster.params.Line.threshold = 8
+  const intersects = raycaster.intersectObjects(connections3D, false)
+  return intersects.length > 0 ? intersects[0].object.userData.connection : null
+}
+
+function getNodeMesh(node) {
+  return nodes3D.find((mesh) => mesh.userData.node === node)
+}
+
+function updateNode3DPosition(node) {
+  const mesh = getNodeMesh(node)
+  if (!mesh) return
+
+  const z = nodeDepths.get(node.id) ?? 0
+  mesh.position.set(node.x, node.y, z)
+}
+
+function updatePreviewLine(startNode, event) {
+  if (!scene || !startNode) return
+
+  setPointerFromEvent(event)
+  const startZ = nodeDepths.get(startNode.id) ?? 0
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -startZ)
+  const end = new THREE.Vector3()
+
+  if (!raycaster.ray.intersectPlane(plane, end)) return
+
+  const start = new THREE.Vector3(startNode.x, startNode.y, startZ)
+  const control = new THREE.Vector3((start.x + end.x) / 2, (start.y + end.y) / 2 - 30, startZ + 20)
+  const curve = new THREE.QuadraticBezierCurve3(start, control, end)
+  const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(30))
+
+  if (!previewLine) {
+    previewLine = new THREE.Line(
+      geometry,
+      new THREE.LineDashedMaterial({
+        color: isDarkMode ? 0x94a3b8 : 0x64748b,
+        dashSize: 8,
+        gapSize: 6,
+        transparent: true,
+        opacity: 0.65,
+      }),
+    )
+    scene.add(previewLine)
+  } else {
+    previewLine.geometry.dispose()
+    previewLine.geometry = geometry
+  }
+
+  previewLine.computeLineDistances()
+}
+
+function clearPreviewLine() {
+  if (!previewLine || !scene) return
+
+  scene.remove(previewLine)
+  previewLine.geometry.dispose()
+  previewLine.material.dispose()
+  previewLine = null
+}
+
+function refreshConnectionGeometry() {
+  connections3D.forEach((line) => {
+    line.geometry.dispose()
+    scene.remove(line)
+  })
+  connections3D = []
+  activeApp.connections.forEach(generateConnections3D)
+  connections3D.forEach((conn) => scene.add(conn))
+}
+
+function handleThreePointerDown(event) {
+  if (!activeApp) return
+
+  const clickedNode = findNodeFromEvent(event)
+
+  if (clickedNode) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    activeApp.selectedConnection = null
+    activeApp.selectedNode = clickedNode
+
+    if (activeApp.isConnectMode) {
+      activeConnectNode = clickedNode
+      updatePreviewLine(clickedNode, event)
+    } else {
+      activeDragNode = clickedNode
+      wasDragging3D = false
+      const mesh = getNodeMesh(clickedNode)
+      const z = nodeDepths.get(clickedNode.id) ?? 0
+      dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z)
+      const hit = new THREE.Vector3()
+      if (raycaster.ray.intersectPlane(dragPlane, hit) && mesh) {
+        dragOffset = hit.sub(mesh.position)
+      } else {
+        dragOffset = new THREE.Vector3()
+      }
+      controls.enabled = false
+      renderer.domElement.style.cursor = "grabbing"
+    }
+
+    refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+    return
+  }
+
+  const clickedConnection = findConnectionFromEvent(event)
+  if (clickedConnection) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    activeApp.selectedConnection = activeApp.selectedConnection === clickedConnection ? null : clickedConnection
+    activeApp.selectedNode = null
+    refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+    return
+  }
+
+  activeApp.selectedNode = null
+  activeApp.selectedConnection = null
+  refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+}
+
+function handleThreePointerMove(event) {
+  if (!activeApp) return
+
+  if (activeConnectNode) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    updatePreviewLine(activeConnectNode, event)
+    renderer.domElement.style.cursor = "crosshair"
+    return
+  }
+
+  if (!activeDragNode || !dragPlane || !dragOffset) {
+    renderer.domElement.style.cursor = findNodeFromEvent(event) ? "grab" : "default"
+    return
+  }
+
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  setPointerFromEvent(event)
+  const hit = new THREE.Vector3()
+  if (!raycaster.ray.intersectPlane(dragPlane, hit)) return
+
+  hit.sub(dragOffset)
+  activeDragNode.x = hit.x
+  activeDragNode.y = hit.y
+  updateNode3DPosition(activeDragNode)
+  refreshConnectionGeometry()
+  wasDragging3D = true
+}
+
+function handleThreePointerUp(event) {
+  if (!activeApp) return
+
+  if (activeConnectNode) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const targetNode = findNodeFromEvent(event)
+    if (targetNode && targetNode !== activeConnectNode) {
+      activeApp.createConnection(activeConnectNode, targetNode)
+    }
+    activeApp.selectedNode = null
+    activeConnectNode = null
+    clearPreviewLine()
+    refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+  }
+
+  if (activeDragNode) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    activeDragNode = null
+    dragPlane = null
+    dragOffset = null
+    controls.enabled = true
+    renderer.domElement.style.cursor = "default"
+    if (wasDragging3D) {
+      refreshThreeScene(activeApp.nodes, activeApp.connections, activeApp.selectedNode, activeApp.selectedConnection)
+    }
+  }
+}
+
+function setupThreeInteractions(app) {
+  activeApp = app
+  renderer.domElement.addEventListener("pointerdown", handleThreePointerDown, true)
+  renderer.domElement.addEventListener("pointermove", handleThreePointerMove, true)
+  renderer.domElement.addEventListener("pointerup", handleThreePointerUp, true)
+  renderer.domElement.addEventListener("pointerleave", handleThreePointerUp, true)
+}
+
+function removeThreeInteractions() {
+  if (!renderer) return
+
+  renderer.domElement.removeEventListener("pointerdown", handleThreePointerDown, true)
+  renderer.domElement.removeEventListener("pointermove", handleThreePointerMove, true)
+  renderer.domElement.removeEventListener("pointerup", handleThreePointerUp, true)
+  renderer.domElement.removeEventListener("pointerleave", handleThreePointerUp, true)
+}
+
+export function refreshThreeScene(nodes, connections, selectedNode = null, selectedConnection = null) {
+  if (!scene || !renderer) return
+
+  nodes3D.forEach((node) => {
+    scene.remove(node)
+    node.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose()
+      if (obj.material) obj.material.dispose()
+    })
+  })
+  connections3D.forEach((conn) => {
+    scene.remove(conn)
+    conn.geometry.dispose()
+    conn.material.dispose()
+  })
+
+  nodes3D = []
+  connections3D = []
+
+  nodes.forEach((node) => {
+    if (!nodeDepths.has(node.id)) nodeDepths.set(node.id, 0)
+  })
+  nodeDepths.forEach((_, nodeId) => {
+    if (!nodes.some((node) => node.id === nodeId)) {
+      nodeDepths.delete(nodeId)
+    }
+  })
+
+  if (activeApp) {
+    activeApp.selectedNode = selectedNode
+    activeApp.selectedConnection = selectedConnection
+  }
+
+  nodes.forEach(generateNodes3D)
+  connections.forEach(generateConnections3D)
+  nodes3D.forEach((node) => scene.add(node))
+  connections3D.forEach((conn) => scene.add(conn))
+}
+
+export function initializeThree(nodes, connections, app = null) {
   if (renderer) {
     cleanupThree()
   }
+
+  activeApp = app
 
   console.log("initializing three.js")
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
   renderer.setClearColor(isDarkMode ? 0x0f172a : 0xffffff, 1)
+  renderer.domElement.style.touchAction = "none"
 
   canvasContainer.appendChild(renderer.domElement)
 
@@ -445,6 +719,7 @@ export function initializeThree(nodes, connections) {
   controls = new OrbitControls(camera, renderer.domElement)
   const viewState = getGraphViewState(nodes)
   setRandomNodeDepths(nodes, viewState.depthRange)
+  if (app) setupThreeInteractions(app)
 
   // 그리드 헬퍼 추가
   const gridHelper = new THREE.GridHelper(500, 50, isDarkMode ? 0x334155 : 0xe2e8f0, isDarkMode ? 0x1e293b : 0xf1f5f9)
@@ -477,6 +752,7 @@ export function initializeThree(nodes, connections) {
 
 export function cleanupThree() {
   if (renderer) {
+    removeThreeInteractions()
     cancelAnimationFrame(animationFrameId)
     scene.traverse((obj) => {
       if (obj.isMesh) {
@@ -496,6 +772,12 @@ export function cleanupThree() {
     nodes3D = []
     connections3D = []
     nodeDepths = new Map()
+    activeApp = null
+    activeDragNode = null
+    activeConnectNode = null
+    dragPlane = null
+    dragOffset = null
+    previewLine = null
   }
 }
 
@@ -527,25 +809,25 @@ export function toggleConnectMode(isConnectMode) {
   }
 }
 
-export function toggleViewMode(drawMindmapCallback, nodes, connections) {
+export function toggleViewMode(drawMindmapCallback, nodes, connections, app = null) {
     if (!isView3D) {
+        isView3D = true
         canvas.style.display = "none"
-        initializeThree(nodes, connections)
+        initializeThree(nodes, connections, app)
         changeViewBtn.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
         changeViewBtnMobile.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
         showToast("3D 모드로 전환되었습니다.")
     } else {
+        isView3D = false
         canvas.style.display = "block"
         if (renderer) {
-            renderer.domElement.style.display = "none"
-            cancelAnimationFrame(animationFrameId)
+            cleanupThree()
         }
         changeViewBtn.innerHTML = '<i class="fas fa-cube"></i><span>3D 모드</span>'
         changeViewBtnMobile.innerHTML = '<i class="fas fa-cube"></i><span>3D 모드</span>'
         showToast("2D 모드로 전환되었습니다.")
     }
 
-    isView3D = !isView3D
     drawMindmapCallback()
 }
 

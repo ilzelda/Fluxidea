@@ -91,6 +91,14 @@ export function setupCanvasListeners(app) {
 export function setupKeyboardListeners(app) {
     window.addEventListener("keydown", (e) => {
         if (app.selectedNode) {
+            if (e.key === "Delete" || e.key === "Backspace") {
+                e.preventDefault();
+                if (confirm("이 노드를 삭제하시겠습니까?")) {
+                    app.deleteNode(app.selectedNode);
+                }
+                return;
+            }
+
             if (e.key === "Tab") {
                 if (e.shiftKey) {
                     e.preventDefault();
@@ -112,6 +120,14 @@ export function setupKeyboardListeners(app) {
             } else if (e.key === "Enter") {
                 // Handle enter key if needed
             }
+        }
+
+        if (app.selectedConnection && (e.key === "Delete" || e.key === "Backspace")) {
+            e.preventDefault();
+            if (confirm("이 연결선을 삭제하시겠습니까?")) {
+                app.deleteConnection(app.selectedConnection);
+            }
+            return;
         }
 
         app.drawMindmap();

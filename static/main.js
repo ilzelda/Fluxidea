@@ -49,10 +49,20 @@ class MindLinkApp {
     }
 
     drawMindmap() {
+        if (this.ui.isView3D) {
+            this.ui.refreshThreeScene(this.nodes, this.connections, this.selectedNode, this.selectedConnection);
+            return;
+        }
+
         this.ui.drawMindmap(this.nodes, this.connections, this.selectedNode, this.selectedConnection, this.offsetX, this.offsetY, this.scale);
     }
 
     resizeCanvas() {
+        if (this.ui.isView3D) {
+            this.ui.initializeThree(this.nodes, this.connections, this);
+            return;
+        }
+
         this.ui.resizeCanvas(this.nodes, this.connections, this.selectedNode, this.selectedConnection, this.offsetX, this.offsetY, this.scale);
     }
 
@@ -435,7 +445,7 @@ class MindLinkApp {
         this.scale = 1;
 
         if (this.ui.isView3D) {
-            this.ui.initializeThree(this.nodes, this.connections);
+            this.ui.initializeThree(this.nodes, this.connections, this);
         } else {
             this.drawMindmap();
         }
@@ -488,7 +498,7 @@ class MindLinkApp {
     }
 
     toggleViewMode() {
-        this.ui.toggleViewMode(() => this.drawMindmap(), this.nodes, this.connections);
+        this.ui.toggleViewMode(() => this.drawMindmap(), this.nodes, this.connections, this);
     }
     
     selectParentNode() {
