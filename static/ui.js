@@ -43,6 +43,7 @@ let renderer, scene, camera, controls
 let animationFrameId
 let nodes3D = []
 let connections3D = []
+let nodeDepths = new Map()
 
 const levelColors = [
   "#FF6B6B",
@@ -312,9 +313,59 @@ export function resizeCanvas(nodes, connections, selectedNode, selectedConnectio
 }
 
 function animate() {
-  requestAnimationFrame(animate)
+  if (!renderer || !scene || !camera || !controls) return
+
+  animationFrameId = requestAnimationFrame(animate)
   controls.update()
   renderer.render(scene, camera)
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function getGraphViewState(nodes) {
+  if (nodes.length === 0) {
+    return {
+      center: new THREE.Vector3(0, 0, 0),
+      width: 0,
+      height: 0,
+      depthRange: 80,
+    }
+  }
+
+  const bounds = nodes.reduce(
+    (acc, node) => ({
+      minX: Math.min(acc.minX, node.x),
+      maxX: Math.max(acc.maxX, node.x),
+      minY: Math.min(acc.minY, node.y),
+      maxY: Math.max(acc.maxY, node.y),
+    }),
+    {
+      minX: Infinity,
+      maxX: -Infinity,
+      minY: Infinity,
+      maxY: -Infinity,
+    },
+  )
+
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  const maxSpan = Math.max(width, height)
+
+  return {
+    center: new THREE.Vector3((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, 0),
+    width,
+    height,
+    depthRange: clamp(maxSpan * 0.35, 40, 240),
+  }
+}
+
+function setRandomNodeDepths(nodes, depthRange) {
+  nodeDepths = new Map()
+  nodes.forEach((node) => {
+    nodeDepths.set(node.id, (Math.random() - 0.5) * depthRange)
+  })
 }
 
 function generateNodes3D(node) {
@@ -326,7 +377,8 @@ function generateNodes3D(node) {
         : new THREE.Color(isDarkMode ? 0x1e293b : 0xffffff),
   })
   const sphere = new THREE.Mesh(geometry, material)
-  sphere.position.set(node.x, node.y, 0)
+  const z = nodeDepths.get(node.id) ?? 0
+  sphere.position.set(node.x, node.y, z)
   sphere.userData = { id: node.id, text: node.text }
 
   // 노드 텍스트 추가
@@ -353,14 +405,16 @@ function generateNodes3D(node) {
 function generateConnections3D(conn) {
   const startX = conn.start.x
   const startY = conn.start.y
+  const startZ = nodeDepths.get(conn.start.id) ?? 0
   const endX = conn.end.x
   const endY = conn.end.y
+  const endZ = nodeDepths.get(conn.end.id) ?? 0
 
   // 곡선 연결선 생성
   const curve = new THREE.QuadraticBezierCurve3(
-    new THREE.Vector3(startX, startY, 0),
-    new THREE.Vector3((startX + endX) / 2, (startY + endY) / 2 - 30, 20),
-    new THREE.Vector3(endX, endY, 0),
+    new THREE.Vector3(startX, startY, startZ),
+    new THREE.Vector3((startX + endX) / 2, (startY + endY) / 2 - 30, (startZ + endZ) / 2 + 20),
+    new THREE.Vector3(endX, endY, endZ),
   )
 
   const points = curve.getPoints(50)
@@ -375,49 +429,55 @@ function generateConnections3D(conn) {
 }
 
 export function initializeThree(nodes, connections) {
-  if (!renderer) {
-    console.log("initializing three.js")
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
-    renderer.setClearColor(isDarkMode ? 0x0f172a : 0xffffff, 1)
-    renderer.setAnimationLoop(animate)
-
-    canvasContainer.appendChild(renderer.domElement)
-
-    scene = new THREE.Scene()
-    camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000)
-    controls = new OrbitControls(camera, renderer.domElement)
-
-    // 그리드 헬퍼 추가
-    const gridHelper = new THREE.GridHelper(500, 50, isDarkMode ? 0x334155 : 0xe2e8f0, isDarkMode ? 0x1e293b : 0xf1f5f9)
-    gridHelper.position.y = -50
-    scene.add(gridHelper)
-
-    nodes.forEach(generateNodes3D)
-    connections.forEach(generateConnections3D)
-
-    nodes3D.forEach((node) => scene.add(node))
-    connections3D.forEach((conn) => scene.add(conn))
-
-    if (nodes.length > 0) {
-      camera.position.set(nodes[0].x, nodes[0].y, 100)
-      camera.lookAt(nodes[0].x, nodes[0].y, 0)
-    } else {
-      camera.position.set(0, 0, 100)
-      camera.lookAt(0, 0, 0)
-    }
-
-    controls.update()
-
-    animate()
-  } else {
-    renderer.domElement.style.display = "block"
-    renderer.setClearColor(isDarkMode ? 0x0f172a : 0xffffff, 1)
+  if (renderer) {
+    cleanupThree()
   }
+
+  console.log("initializing three.js")
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+  renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
+  renderer.setClearColor(isDarkMode ? 0x0f172a : 0xffffff, 1)
+
+  canvasContainer.appendChild(renderer.domElement)
+
+  scene = new THREE.Scene()
+  camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000)
+  controls = new OrbitControls(camera, renderer.domElement)
+  const viewState = getGraphViewState(nodes)
+  setRandomNodeDepths(nodes, viewState.depthRange)
+
+  // 그리드 헬퍼 추가
+  const gridHelper = new THREE.GridHelper(500, 50, isDarkMode ? 0x334155 : 0xe2e8f0, isDarkMode ? 0x1e293b : 0xf1f5f9)
+  gridHelper.position.y = -50
+  gridHelper.position.x = viewState.center.x
+  gridHelper.position.z = viewState.center.z
+  scene.add(gridHelper)
+
+  nodes.forEach(generateNodes3D)
+  connections.forEach(generateConnections3D)
+
+  nodes3D.forEach((node) => scene.add(node))
+  connections3D.forEach((conn) => scene.add(conn))
+
+  const fovRadians = THREE.MathUtils.degToRad(camera.fov)
+  const fitHeightDistance = viewState.height / 2 / Math.tan(fovRadians / 2)
+  const fitWidthDistance = viewState.width / 2 / (Math.tan(fovRadians / 2) * camera.aspect)
+  const cameraDistance = Math.max(fitHeightDistance, fitWidthDistance, 120) + viewState.depthRange + 80
+
+  camera.position.set(viewState.center.x, viewState.center.y, viewState.center.z + cameraDistance)
+  camera.lookAt(viewState.center)
+  camera.far = Math.max(1000, cameraDistance + viewState.depthRange + 100)
+  camera.updateProjectionMatrix()
+  controls.target.copy(viewState.center)
+
+  controls.update()
+
+  animate()
 }
 
 export function cleanupThree() {
   if (renderer) {
+    cancelAnimationFrame(animationFrameId)
     scene.traverse((obj) => {
       if (obj.isMesh) {
         obj.geometry.dispose()
@@ -435,6 +495,7 @@ export function cleanupThree() {
     renderer = scene = camera = controls = null
     nodes3D = []
     connections3D = []
+    nodeDepths = new Map()
   }
 }
 
