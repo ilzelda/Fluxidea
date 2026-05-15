@@ -4,6 +4,7 @@ import * as auth from './auth.js';
 import * as ui from './ui.js';
 import { setupButtonListeners, setupCanvasListeners, setupKeyboardListeners } from './event.js';
 import * as api from './api.js';
+import { getConnectionEndpoints, getCurveControlPoint, getQuadraticPoint } from './connectionGeometry.js';
 
 class MindLinkApp {
     constructor() {
@@ -92,24 +93,18 @@ class MindLinkApp {
     }
 
     isClickOnConnection(x, y, conn) {
-        const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
-        const startY = conn.start.y;
-        const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
-        const endY = conn.end.y;
-
-        const controlPointX = (startX + endX) / 2;
-        const controlPointY = (startY + endY) / 2 - 30;
+        const { start, end } = getConnectionEndpoints(conn);
+        const control = getCurveControlPoint(start, end);
 
         const samples = 10;
         let minDistance = Number.POSITIVE_INFINITY;
 
         for (let i = 0; i <= samples; i++) {
             const t = i / samples;
-            const pointX = Math.pow(1 - t, 2) * startX + 2 * (1 - t) * t * controlPointX + Math.pow(t, 2) * endX;
-            const pointY = Math.pow(1 - t, 2) * startY + 2 * (1 - t) * t * controlPointY + Math.pow(t, 2) * endY;
+            const point = getQuadraticPoint(start, control, end, t);
 
-            const dx = x - pointX;
-            const dy = y - pointY;
+            const dx = x - point.x;
+            const dy = y - point.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance < minDistance) {

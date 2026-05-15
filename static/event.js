@@ -1,5 +1,6 @@
 
 import { drawMindmap } from './ui.js';
+import { getConnectionMidpoint, getCurveControlPoint, getNodeBoundaryPoint } from './connectionGeometry.js';
 
 let isDragging = false;
 let startDragX = 0;
@@ -145,15 +146,9 @@ function getScreenPosition(app, x, y) {
 }
 
 function getConnectionLabelPosition(conn) {
-    const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2);
-    const startY = conn.start.y;
-    const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2);
-    const endY = conn.end.y;
+    const midpoint = getConnectionMidpoint(conn);
 
-    return {
-        x: (startX + endX) / 2,
-        y: (startY + endY) / 2 - 8,
-    };
+    return { x: midpoint.x, y: midpoint.y - 8 };
 }
 
 function finishInlineEdit(commit = true) {
@@ -448,10 +443,9 @@ function onMouseMove(e, app) {
 
         app.drawMindmap();
 
-        const startX = app.selectedNode.x + (x > app.selectedNode.x ? app.selectedNode.width / 2 : -app.selectedNode.width / 2);
-        const startY = app.selectedNode.y;
-        const controlPointX = (startX + x) / 2;
-        const controlPointY = (startY + y) / 2 - 30;
+        const start = getNodeBoundaryPoint(app.selectedNode, x, y);
+        const end = { x, y };
+        const controlPoint = getCurveControlPoint(start, end);
 
         app.ui.ctx.save();
         app.ui.ctx.translate(app.offsetX, app.offsetY);
@@ -462,8 +456,8 @@ function onMouseMove(e, app) {
         app.ui.ctx.setLineDash([5, 5]);
 
         app.ui.ctx.beginPath();
-        app.ui.ctx.moveTo(startX, startY);
-        app.ui.ctx.quadraticCurveTo(controlPointX, controlPointY, x, y);
+        app.ui.ctx.moveTo(start.x, start.y);
+        app.ui.ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, end.x, end.y);
         app.ui.ctx.stroke();
 
         app.ui.ctx.setLineDash([]);

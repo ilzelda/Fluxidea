@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
+import { getConnectionEndpoints, getCurveControlPoint } from "./connectionGeometry.js"
 
 // UI Elements
 export const canvasContainer = document.getElementById("canvasContainer")
@@ -195,14 +196,12 @@ export function drawNode(node, selectedNode, highlightedConnectTarget = null) {
 
 // 연결선 그리기
 export function drawConnection(conn, selectedConnection) {
-  const startX = conn.start.x + (conn.end.x > conn.start.x ? conn.start.width / 2 : -conn.start.width / 2)
-  const startY = conn.start.y
-  const endX = conn.end.x + (conn.end.x > conn.start.x ? -conn.end.width / 2 : conn.end.width / 2)
-  const endY = conn.end.y
+  const { start, end } = getConnectionEndpoints(conn)
+  const controlPoint = getCurveControlPoint(start, end)
 
   // 연결선의 중간 지점 계산
-  const midX = (startX + endX) / 2
-  const midY = (startY + endY) / 2
+  const midX = (start.x + end.x) / 2
+  const midY = (start.y + end.y) / 2
 
   // 연결선 그리기
   if (conn === selectedConnection) {
@@ -214,20 +213,17 @@ export function drawConnection(conn, selectedConnection) {
   }
 
   // 곡선 연결선 그리기
-  const controlPointX = (startX + endX) / 2
-  const controlPointY = (startY + endY) / 2 - 30
-
   ctx.beginPath()
-  ctx.moveTo(startX, startY)
-  ctx.quadraticCurveTo(controlPointX, controlPointY, endX, endY)
+  ctx.moveTo(start.x, start.y)
+  ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, end.x, end.y)
   ctx.stroke()
 
   // 화살표 그리기
   const arrowSize = 8
-  const angle = Math.atan2(endY - controlPointY, endX - controlPointX)
+  const angle = Math.atan2(end.y - controlPoint.y, end.x - controlPoint.x)
 
   ctx.save()
-  ctx.translate(endX, endY)
+  ctx.translate(end.x, end.y)
   ctx.rotate(angle)
   ctx.beginPath()
   ctx.moveTo(0, 0)
