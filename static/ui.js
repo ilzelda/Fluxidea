@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
+import { VRButton } from "three/addons/webxr/VRButton.js"
 import { getConnectionEndpoints, getCurveControlPoint } from "./connectionGeometry.js"
 
 // UI Elements
@@ -17,6 +18,7 @@ export const testBtn = document.getElementById("testBtn")
 export const saveBtn = document.getElementById("saveBtn")
 export const newPageBtn = document.getElementById("newPageBtn")
 export const changeViewBtn = document.getElementById("changeViewBtn")
+export const vrViewBtn = document.getElementById("vrViewBtn")
 export const themeToggle = document.getElementById("themeToggle")
 
 // Mobile toolbar buttons
@@ -27,6 +29,7 @@ export const organizeForceBtnMobile = document.getElementById("organizeForceBtn-
 export const testBtnMobile = document.getElementById("testBtn-mobile")
 export const saveBtnMobile = document.getElementById("saveBtn-mobile")
 export const changeViewBtnMobile = document.getElementById("changeViewBtn-mobile")
+export const vrViewBtnMobile = document.getElementById("vrViewBtn-mobile")
 
 // Sidebar toggle
 export const sidebarOpen = document.getElementById("sidebarOpen")
@@ -41,7 +44,9 @@ export let isDarkMode = false
 export let isView3D = false
 
 let renderer, scene, camera, controls
-let animationFrameId
+let graphGroup = null
+let latestViewState = null
+let xrNativeButton = null
 let nodes3D = []
 let connections3D = []
 let nodeDepths = new Map()
@@ -358,12 +363,29 @@ export function resizeCanvas(
   drawMindmap(nodes, connections, selectedNode, selectedConnection, highlightedConnectTarget, offsetX, offsetY, scale)
 }
 
-function animate() {
+function getSceneRoot() {
+  return graphGroup ?? scene
+}
+
+function renderThree() {
   if (!renderer || !scene || !camera || !controls) return
 
-  animationFrameId = requestAnimationFrame(animate)
-  controls.update()
+  if (!renderer.xr.isPresenting) {
+    controls.update()
+  }
   renderer.render(scene, camera)
+}
+
+function startThreeRenderLoop() {
+  if (!renderer) return
+
+  renderer.setAnimationLoop(renderThree)
+}
+
+function stopThreeRenderLoop() {
+  if (!renderer) return
+
+  renderer.setAnimationLoop(null)
 }
 
 function clamp(value, min, max) {
@@ -413,6 +435,89 @@ function setRandomNodeDepths(nodes, depthRange) {
       nodeDepths.set(node.id, (Math.random() - 0.5) * depthRange)
     }
   })
+}
+
+function updateVRButtons(isPresenting = false) {
+  const icon = '<i class="fas fa-vr-cardboard"></i>'
+  const label = isPresenting ? "VR 종료" : "VR 보기"
+
+  ;[vrViewBtn, vrViewBtnMobile].forEach((button) => {
+    if (!button) return
+
+    button.innerHTML = `${icon}<span>${label}</span>`
+    button.classList.toggle("vr-active", isPresenting)
+  })
+}
+
+function ensureNativeVRButton() {
+  if (!renderer || xrNativeButton) return
+
+  xrNativeButton = VRButton.createButton(renderer)
+  xrNativeButton.classList.add("xr-native-button")
+  xrNativeButton.setAttribute("aria-hidden", "true")
+  xrNativeButton.tabIndex = -1
+  canvasContainer.appendChild(xrNativeButton)
+}
+
+function getVRUnavailableMessage(error = null) {
+  if (!window.isSecureContext) {
+    return "VR 보기는 HTTPS 또는 localhost에서만 작동합니다."
+  }
+
+  if (!("xr" in navigator)) {
+    return "이 브라우저는 WebXR VR을 지원하지 않습니다."
+  }
+
+  if (error?.name === "NotSupportedError") {
+    return "연결된 VR 기기 또는 브라우저에서 몰입형 VR을 지원하지 않습니다."
+  }
+
+  if (error?.name === "SecurityError") {
+    return "보안 연결에서만 VR을 시작할 수 있습니다. HTTPS 주소로 접속해 주세요."
+  }
+
+  if (error?.name === "NotAllowedError") {
+    return "VR 시작 권한이 취소되었습니다."
+  }
+
+  return "VR 보기를 시작하지 못했습니다."
+}
+
+function applyVRViewingTransform() {
+  if (!graphGroup || !latestViewState) return
+
+  const span = Math.max(latestViewState.width, latestViewState.height, latestViewState.depthRange, 120)
+  const scale = clamp(2.6 / span, 0.004, 0.025)
+
+  graphGroup.scale.setScalar(scale)
+  graphGroup.position.set(
+    -latestViewState.center.x * scale,
+    -latestViewState.center.y * scale,
+    -2.4 - latestViewState.center.z * scale,
+  )
+}
+
+function restoreDesktopGraphTransform() {
+  if (!graphGroup) return
+
+  graphGroup.position.set(0, 0, 0)
+  graphGroup.rotation.set(0, 0, 0)
+  graphGroup.scale.setScalar(1)
+}
+
+function handleXRSessionStart() {
+  if (controls) controls.enabled = false
+
+  applyVRViewingTransform()
+  updateVRButtons(true)
+  showToast("VR에서는 그래프를 둘러보기만 지원합니다.", "info")
+}
+
+function handleXRSessionEnd() {
+  restoreDesktopGraphTransform()
+
+  if (controls) controls.enabled = true
+  updateVRButtons(false)
 }
 
 function getNodeColor(node, isSelected = false) {
@@ -543,7 +648,7 @@ function updatePreviewLine(startNode, event) {
         opacity: 0.65,
       }),
     )
-    scene.add(previewLine)
+    getSceneRoot().add(previewLine)
   } else {
     previewLine.geometry.dispose()
     previewLine.geometry = geometry
@@ -555,7 +660,7 @@ function updatePreviewLine(startNode, event) {
 function clearPreviewLine() {
   if (!previewLine || !scene) return
 
-  scene.remove(previewLine)
+  getSceneRoot().remove(previewLine)
   previewLine.geometry.dispose()
   previewLine.material.dispose()
   previewLine = null
@@ -564,14 +669,15 @@ function clearPreviewLine() {
 function refreshConnectionGeometry() {
   connections3D.forEach((line) => {
     line.geometry.dispose()
-    scene.remove(line)
+    getSceneRoot().remove(line)
   })
   connections3D = []
   activeApp.connections.forEach(generateConnections3D)
-  connections3D.forEach((conn) => scene.add(conn))
+  connections3D.forEach((conn) => getSceneRoot().add(conn))
 }
 
 function handleThreePointerDown(event) {
+  if (renderer?.xr.isPresenting) return
   if (!activeApp) return
 
   const clickedNode = findNodeFromEvent(event)
@@ -624,6 +730,7 @@ function handleThreePointerDown(event) {
 }
 
 function handleThreePointerMove(event) {
+  if (renderer?.xr.isPresenting) return
   if (!activeApp) return
 
   if (activeConnectNode) {
@@ -667,6 +774,7 @@ function handleThreePointerMove(event) {
 }
 
 function handleThreePointerUp(event) {
+  if (renderer?.xr.isPresenting) return
   if (!activeApp) return
 
   if (activeConnectNode) {
@@ -751,15 +859,17 @@ function removeThreeInteractions() {
 export function refreshThreeScene(nodes, connections, selectedNode = null, selectedConnection = null) {
   if (!scene || !renderer) return
 
+  const root = getSceneRoot()
+  latestViewState = getGraphViewState(nodes)
   nodes3D.forEach((node) => {
-    scene.remove(node)
+    root.remove(node)
     node.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose()
       if (obj.material) obj.material.dispose()
     })
   })
   connections3D.forEach((conn) => {
-    scene.remove(conn)
+    root.remove(conn)
     conn.geometry.dispose()
     conn.material.dispose()
   })
@@ -783,11 +893,19 @@ export function refreshThreeScene(nodes, connections, selectedNode = null, selec
 
   nodes.forEach(generateNodes3D)
   connections.forEach(generateConnections3D)
-  nodes3D.forEach((node) => scene.add(node))
-  connections3D.forEach((conn) => scene.add(conn))
+  nodes3D.forEach((node) => root.add(node))
+  connections3D.forEach((conn) => root.add(conn))
 }
 
 export function initializeThree(nodes, connections, app = null) {
+  if (renderer?.xr.isPresenting) {
+    activeApp = app
+    renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
+    refreshThreeScene(nodes, connections, app?.selectedNode ?? null, app?.selectedConnection ?? null)
+    applyVRViewingTransform()
+    return
+  }
+
   if (renderer) {
     cleanupThree()
   }
@@ -799,28 +917,36 @@ export function initializeThree(nodes, connections, app = null) {
   renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
   renderer.setClearColor(isDarkMode ? 0x0f172a : 0xffffff, 1)
   renderer.domElement.style.touchAction = "none"
+  renderer.xr.enabled = true
+  renderer.xr.setReferenceSpaceType("local")
+  renderer.xr.addEventListener("sessionstart", handleXRSessionStart)
+  renderer.xr.addEventListener("sessionend", handleXRSessionEnd)
 
   canvasContainer.appendChild(renderer.domElement)
 
   scene = new THREE.Scene()
+  graphGroup = new THREE.Group()
+  scene.add(graphGroup)
   camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000)
   controls = new OrbitControls(camera, renderer.domElement)
   const viewState = getGraphViewState(nodes)
+  latestViewState = viewState
   setRandomNodeDepths(nodes, viewState.depthRange)
   if (app) setupThreeInteractions(app)
+  ensureNativeVRButton()
 
   // 그리드 헬퍼 추가
   const gridHelper = new THREE.GridHelper(500, 50, isDarkMode ? 0x334155 : 0xe2e8f0, isDarkMode ? 0x1e293b : 0xf1f5f9)
   gridHelper.position.y = -50
   gridHelper.position.x = viewState.center.x
   gridHelper.position.z = viewState.center.z
-  scene.add(gridHelper)
+  graphGroup.add(gridHelper)
 
   nodes.forEach(generateNodes3D)
   connections.forEach(generateConnections3D)
 
-  nodes3D.forEach((node) => scene.add(node))
-  connections3D.forEach((conn) => scene.add(conn))
+  nodes3D.forEach((node) => graphGroup.add(node))
+  connections3D.forEach((conn) => graphGroup.add(conn))
 
   const fovRadians = THREE.MathUtils.degToRad(camera.fov)
   const fitHeightDistance = viewState.height / 2 / Math.tan(fovRadians / 2)
@@ -835,13 +961,19 @@ export function initializeThree(nodes, connections, app = null) {
 
   controls.update()
 
-  animate()
+  startThreeRenderLoop()
 }
 
 export function cleanupThree() {
   if (renderer) {
     removeThreeInteractions()
-    cancelAnimationFrame(animationFrameId)
+    const xrSession = renderer.xr.getSession()
+    if (xrSession) {
+      xrSession.end().catch(() => {})
+    }
+    renderer.xr.removeEventListener("sessionstart", handleXRSessionStart)
+    renderer.xr.removeEventListener("sessionend", handleXRSessionEnd)
+    stopThreeRenderLoop()
     scene.traverse((obj) => {
       if (obj.isMesh) {
         obj.geometry.dispose()
@@ -853,10 +985,17 @@ export function cleanupThree() {
       }
     })
 
+    if (xrNativeButton) {
+      xrNativeButton.remove()
+      xrNativeButton = null
+    }
+
     renderer.domElement.remove()
     controls.dispose()
 
     renderer = scene = camera = controls = null
+    graphGroup = null
+    latestViewState = null
     nodes3D = []
     connections3D = []
     nodeDepths = new Map()
@@ -867,6 +1006,7 @@ export function cleanupThree() {
     dragOffset = null
     previewLine = null
     connectTargetHintShown3D = false
+    updateVRButtons(false)
   }
 }
 
@@ -918,6 +1058,42 @@ export function toggleViewMode(drawMindmapCallback, nodes, connections, app = nu
     }
 
     drawMindmapCallback()
+}
+
+export async function enterVRView(drawMindmapCallback, nodes, connections, app = null) {
+  if (!window.isSecureContext || !("xr" in navigator)) {
+    showToast(getVRUnavailableMessage(), "warning")
+    return
+  }
+
+  if (!isView3D) {
+    isView3D = true
+    canvas.style.display = "none"
+    initializeThree(nodes, connections, app)
+    changeViewBtn.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
+    changeViewBtnMobile.innerHTML = '<i class="fas fa-map"></i><span>2D 모드</span>'
+    drawMindmapCallback()
+  } else if (!renderer) {
+    initializeThree(nodes, connections, app)
+  }
+
+  ensureNativeVRButton()
+
+  try {
+    const activeSession = renderer.xr.getSession()
+    if (activeSession) {
+      await activeSession.end()
+      return
+    }
+
+    const session = await navigator.xr.requestSession("immersive-vr", {
+      optionalFeatures: ["local-floor", "bounded-floor"],
+    })
+    await renderer.xr.setSession(session)
+  } catch (error) {
+    console.error("Failed to start VR session", error)
+    showToast(getVRUnavailableMessage(error), "error")
+  }
 }
 
 export function showToast(message, type = "success") {

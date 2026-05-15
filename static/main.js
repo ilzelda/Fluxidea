@@ -533,6 +533,10 @@ class MindLinkApp {
     toggleViewMode() {
         this.ui.toggleViewMode(() => this.drawMindmap(), this.nodes, this.connections, this);
     }
+
+    enterVRView() {
+        this.ui.enterVRView(() => this.drawMindmap(), this.nodes, this.connections, this);
+    }
     
     selectParentNode() {
         const parentIds = this.graph[this.selectedNode.id].parents;

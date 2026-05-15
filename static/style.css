@@ -222,6 +222,16 @@ html {
   background-color: var(--primary-hover);
 }
 
+.toolbar button.vr-active {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.xr-native-button {
+  display: none !important;
+}
+
 .toolbar-dropdown {
   display: none;
   position: relative;

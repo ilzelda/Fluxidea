@@ -27,6 +27,7 @@ export function setupButtonListeners(app) {
     });
     app.ui.connectModeBtn.addEventListener("click", () => app.toggleConnectMode());
     app.ui.changeViewBtn.addEventListener("click", () => app.toggleViewMode());
+    app.ui.vrViewBtn.addEventListener("click", () => app.enterVRView());
     app.ui.themeToggle.addEventListener("click", () => app.toggleTheme());
 
     // Mobile toolbar buttons
@@ -45,6 +46,7 @@ export function setupButtonListeners(app) {
     });
     app.ui.connectModeBtnMobile.addEventListener("click", () => app.toggleConnectMode());
     app.ui.changeViewBtnMobile.addEventListener("click", () => app.toggleViewMode());
+    app.ui.vrViewBtnMobile.addEventListener("click", () => app.enterVRView());
 
     // Sidebar toggle
     app.ui.sidebarOpen.addEventListener("click", () => {
