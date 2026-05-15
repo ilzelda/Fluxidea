@@ -153,12 +153,29 @@ export function drawNode(node, selectedNode, highlightedConnectTarget = null) {
   if (selectedNode === node) {
     const iconSize = 24
     const iconX = node.x + node.width / 2 + 15
-    const iconY = node.y - iconSize / 2
+    const connectIconY = node.y - iconSize - 4
+    const deleteIconY = node.y + 4
+
+    node.connectHandle = {
+      x: iconX,
+      y: connectIconY,
+      width: iconSize,
+      height: iconSize,
+    }
+
+    ctx.fillStyle = "#4f46e5"
+    ctx.beginPath()
+    ctx.arc(iconX + iconSize / 2, connectIconY + iconSize / 2, iconSize / 2 + 4, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.font = `600 ${iconSize}px Inter, sans-serif`
+    ctx.fillStyle = "#ffffff"
+    ctx.fillText("+", iconX + iconSize / 2, connectIconY + iconSize / 2 - 1)
 
     // 휴지통 아이콘 위치 저장 (클릭 감지용)
     node.deleteIcon = {
       x: iconX,
-      y: iconY,
+      y: deleteIconY,
       width: iconSize,
       height: iconSize,
     }
@@ -166,13 +183,13 @@ export function drawNode(node, selectedNode, highlightedConnectTarget = null) {
     // 휴지통 아이콘 배경
     ctx.fillStyle = isDarkMode ? "#334155" : "#f1f5f9"
     ctx.beginPath()
-    ctx.arc(iconX + iconSize / 2, iconY + iconSize / 2, iconSize / 2 + 4, 0, Math.PI * 2)
+    ctx.arc(iconX + iconSize / 2, deleteIconY + iconSize / 2, iconSize / 2 + 4, 0, Math.PI * 2)
     ctx.fill()
 
     // 휴지통 아이콘 그리기
     ctx.font = `${iconSize}px "Font Awesome 6 Free"`
     ctx.fillStyle = isDarkMode ? "#f8fafc" : "#64748b"
-    ctx.fillText("🗑️", iconX + iconSize / 2, iconY + iconSize / 2 + 2)
+    ctx.fillText("🗑️", iconX + iconSize / 2, deleteIconY + iconSize / 2 + 2)
   }
 }
 

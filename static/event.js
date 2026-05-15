@@ -6,6 +6,7 @@ let startDragX = 0;
 let startDragY = 0;
 let activeInlineEditor = null;
 let connectTargetHintShown = false;
+let isHandleConnectionDrag = false;
 
 export function setupButtonListeners(app) {
     // Main toolbar buttons
@@ -118,6 +119,14 @@ function findConnectionAt(app, x, y) {
 function findConnectTargetAt(app, x, y, sourceNode) {
     const targetNode = findNodeAt(app, x, y);
     return targetNode && targetNode !== sourceNode ? targetNode : null;
+}
+
+function isPointInBox(x, y, box) {
+    return box && x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
+}
+
+function isConnectingDrag(app) {
+    return app.selectedNode && (app.isConnectMode || isHandleConnectionDrag);
 }
 
 function isEditingElement(element) {
@@ -306,9 +315,20 @@ function onMouseDown(e, app) {
 
     const { x, y } = app.getRealCoordinates(canvasX, canvasY);
 
+    if (app.selectedNode && isPointInBox(x, y, app.selectedNode.connectHandle)) {
+        app.highlightedConnectTarget = null;
+        app.selectedConnection = null;
+        connectTargetHintShown = false;
+        isHandleConnectionDrag = true;
+        isDragging = true;
+        app.ui.canvas.style.cursor = "crosshair";
+        app.drawMindmap();
+        return;
+    }
+
     if (app.selectedNode && app.selectedNode.deleteIcon) {
         const icon = app.selectedNode.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width && y >= icon.y && y <= icon.y + icon.height) {
+        if (isPointInBox(x, y, icon)) {
             if (confirm("이 노드를 삭제하시겠습니까?")) {
                 app.deleteNode(app.selectedNode);
             }
@@ -318,7 +338,7 @@ function onMouseDown(e, app) {
 
     if (app.selectedConnection && app.selectedConnection.deleteIcon) {
         const icon = app.selectedConnection.deleteIcon;
-        if (x >= icon.x && x <= icon.x + icon.width && y >= icon.y && y <= icon.y + icon.height) {
+        if (isPointInBox(x, y, icon)) {
             if (confirm("이 연결선을 삭제하시겠습니까?")) {
                 app.deleteConnection(app.selectedConnection);
             }
@@ -402,14 +422,21 @@ function onCanvasDoubleClick(e, app) {
 }
 
 function onMouseMove(e, app) {
-    if (!isDragging) return;
-
     const rect = app.ui.canvas.getBoundingClientRect();
     const canvasX = e.clientX - rect.left;
     const canvasY = e.clientY - rect.top;
     const { x, y } = app.getRealCoordinates(canvasX, canvasY);
 
-    if (app.isConnectMode && app.selectedNode) {
+    if (!isDragging) {
+        if (app.selectedNode && isPointInBox(x, y, app.selectedNode.connectHandle)) {
+            app.ui.canvas.style.cursor = "crosshair";
+        } else {
+            app.ui.canvas.style.cursor = "default";
+        }
+        return;
+    }
+
+    if (isConnectingDrag(app)) {
         const targetNode = findConnectTargetAt(app, x, y, app.selectedNode);
         app.highlightedConnectTarget = targetNode;
         app.ui.canvas.style.cursor = targetNode ? "copy" : "crosshair";
@@ -455,12 +482,14 @@ function onMouseMove(e, app) {
 function onMouseUp(e, app) {
     if (!isDragging) return;
     let connectionToEdit = null;
+    const sourceNode = app.selectedNode;
+    const startedFromHandle = isHandleConnectionDrag;
 
     const rect = app.ui.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (app.isConnectMode && app.selectedNode) {
+    if (isConnectingDrag(app)) {
         const { x: realX, y: realY } = app.getRealCoordinates(x, y);
         const targetNode = findConnectTargetAt(app, realX, realY, app.selectedNode);
 
@@ -468,12 +497,13 @@ function onMouseUp(e, app) {
             connectionToEdit = app.createConnection(app.selectedNode, targetNode);
             app.selectedConnection = connectionToEdit;
         }
-        app.selectedNode = null;
+        app.selectedNode = connectionToEdit || !startedFromHandle ? null : sourceNode;
         app.highlightedConnectTarget = null;
         connectTargetHintShown = false;
     }
 
     isDragging = false;
+    isHandleConnectionDrag = false;
     app.ui.canvas.style.cursor = "default";
     app.drawMindmap();
 
