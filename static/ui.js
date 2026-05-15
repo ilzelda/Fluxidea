@@ -698,8 +698,30 @@ function handleThreePointerUp(event) {
   }
 }
 
+function handleThreeContextMenu(event) {
+  if (!canvasContainer.contains(event.target)) return
+
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
+function handleThreeSecondaryClick(event) {
+  if (event.button !== 2 && event.buttons !== 2) return
+
+  event.preventDefault()
+}
+
 function setupThreeInteractions(app) {
   activeApp = app
+  window.addEventListener("contextmenu", handleThreeContextMenu, true)
+  canvasContainer.addEventListener("contextmenu", handleThreeContextMenu, true)
+  renderer.domElement.addEventListener("contextmenu", handleThreeContextMenu, true)
+  renderer.domElement.oncontextmenu = handleThreeContextMenu
+  renderer.domElement.addEventListener("pointerdown", handleThreeSecondaryClick, true)
+  renderer.domElement.addEventListener("pointerup", handleThreeSecondaryClick, true)
+  renderer.domElement.addEventListener("mousedown", handleThreeSecondaryClick, true)
+  renderer.domElement.addEventListener("mouseup", handleThreeSecondaryClick, true)
+  renderer.domElement.addEventListener("auxclick", handleThreeSecondaryClick, true)
   renderer.domElement.addEventListener("pointerdown", handleThreePointerDown, true)
   renderer.domElement.addEventListener("pointermove", handleThreePointerMove, true)
   renderer.domElement.addEventListener("pointerup", handleThreePointerUp, true)
@@ -709,6 +731,17 @@ function setupThreeInteractions(app) {
 function removeThreeInteractions() {
   if (!renderer) return
 
+  window.removeEventListener("contextmenu", handleThreeContextMenu, true)
+  canvasContainer.removeEventListener("contextmenu", handleThreeContextMenu, true)
+  renderer.domElement.removeEventListener("contextmenu", handleThreeContextMenu, true)
+  if (renderer.domElement.oncontextmenu === handleThreeContextMenu) {
+    renderer.domElement.oncontextmenu = null
+  }
+  renderer.domElement.removeEventListener("pointerdown", handleThreeSecondaryClick, true)
+  renderer.domElement.removeEventListener("pointerup", handleThreeSecondaryClick, true)
+  renderer.domElement.removeEventListener("mousedown", handleThreeSecondaryClick, true)
+  renderer.domElement.removeEventListener("mouseup", handleThreeSecondaryClick, true)
+  renderer.domElement.removeEventListener("auxclick", handleThreeSecondaryClick, true)
   renderer.domElement.removeEventListener("pointerdown", handleThreePointerDown, true)
   renderer.domElement.removeEventListener("pointermove", handleThreePointerMove, true)
   renderer.domElement.removeEventListener("pointerup", handleThreePointerUp, true)
